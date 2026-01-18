@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder, UploadResponse } from '@/lib/types';
-import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud, Menu } from 'lucide-react';
+import { LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud, Menu } from 'lucide-react';
 import { useUser } from "@clerk/nextjs";
 import { ClientUserButton } from "@/components/ClientUserButton";
 import { useImageUpload } from '@/hooks/useImageUpload';
@@ -13,6 +13,8 @@ import { parseDropEvent } from '@/lib/upload-utils';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
+import RefreshIcon from '@/components/icons/RefreshIcon';
+import { AnimatedIconHandle } from '@/components/icons/types';
 
 export default function DashboardClient() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
@@ -24,6 +26,9 @@ export default function DashboardClient() {
     const [refreshing, setRefreshing] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const { user } = useUser();
+
+    // Auto-refresh state
+    const refreshIconRef = useRef<AnimatedIconHandle>(null);
 
     // Global DnD state
     const [isGlobalDragOver, setIsGlobalDragOver] = useState(false);
@@ -110,6 +115,13 @@ export default function DashboardClient() {
 
     useEffect(() => {
         fetchData();
+
+        // Auto-refresh every 15 seconds
+        const interval = setInterval(() => {
+            refreshIconRef.current?.startAnimation();
+            fetchData();
+        }, 15000);
+        return () => clearInterval(interval);
     }, [fetchData]);
 
     const handleCreateFolder = async () => {
@@ -257,15 +269,15 @@ export default function DashboardClient() {
                         </div>
 
                         <div className="flex items-center gap-2 sm:gap-4">
-                            <button
-                                onClick={() => { setRefreshing(true); fetchData(); }}
-                                className={cn(
-                                    "p-2 rounded-xl border border-zinc-800/50 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all",
-                                    refreshing && "animate-spin"
-                                )}
+                            <div
+                                onClick={() => {
+                                    refreshIconRef.current?.startAnimation();
+                                    fetchData();
+                                }}
+                                className="p-2 rounded-xl border border-zinc-800/50 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
                             >
-                                <RefreshCw className="w-4 h-4 sm:w-5 h-5" />
-                            </button>
+                                <RefreshIcon ref={refreshIconRef} className="w-4 h-4 sm:w-5 h-5" />
+                            </div>
                             <div className="lg:hidden h-6 sm:h-8 w-px bg-zinc-800" />
                             <div className="lg:hidden scale-90 sm:scale-100">
                                 <ClientUserButton afterSignOutUrl="/" />

@@ -71,7 +71,30 @@ export async function POST(req: NextRequest) {
             const body = await req.json();
             const { url, folderId: fId } = body;
             folderId = fId || queryFolderId || 'null';
-            // ... (rest of logic) ...
+            if (!url) {
+                return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+            }
+
+            console.log(`Fetching image from URL: ${url}`);
+            const fetchRes = await fetch(url);
+            if (!fetchRes.ok) {
+                return NextResponse.json({ error: `Failed to fetch image from URL: ${fetchRes.statusText}` }, { status: 400 });
+            }
+
+            const arrayBuffer = await fetchRes.arrayBuffer();
+            buffer = Buffer.from(arrayBuffer);
+            mimeType = fetchRes.headers.get('content-type') || '';
+
+            // Attempt to get filename from URL
+            const urlPath = new URL(url).pathname;
+            fileName = path.basename(urlPath) || `downloaded-image-${Date.now()}`;
+            if (!path.extname(fileName)) {
+                // Add extension based on mimeType if missing
+                const ext = mimeType.split('/')[1] || 'bin';
+                fileName = `${fileName}.${ext}`;
+            }
+
+            logServer(`URL Fetch Success: ${fileName}, Type: ${mimeType}, Size: ${buffer.length}`);
         } else if (contentType.includes('multipart/form-data')) {
             // Handle File Upload via Busboy (Memory Buffered)
             logServer('Starting Busboy setup (Buffered Mode)...');

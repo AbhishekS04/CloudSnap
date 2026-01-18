@@ -231,3 +231,6 @@
 2026-01-18T20:37:29.294Z - headers: Busboy close event fired
 2026-01-18T20:37:29.295Z - headers: Final state at close -> fileName=Screenshot_20260116_232311_Expo Go.jpg, folderId=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
 2026-01-18T20:37:29.295Z - File received (buffered): IMG_7IIRPR.jpg, Size: 347998, Type: image/jpeg
+2026-01-18T21:32:11.497Z - --- Upload Request Started ---
+2026-01-18T21:32:11.512Z - Content-Type: application/json
+2026-01-18T21:32:11.609Z - URL Fetch Success: 27a557a84b1dff6c0fb1f7798f167ccf.jpg, Type: image/jpeg, Size: 31685
