@@ -252,10 +252,18 @@ function NavItem({ icon, label, active, onClick, onDelete, count }: {
 }) {
     return (
         <div className="relative group/nav">
-            <button
+            <div
+                role="button"
+                tabIndex={0}
                 onClick={onClick}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onClick?.();
+                    }
+                }}
                 className={cn(
-                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
+                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                     active
                         ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
                         : "text-zinc-400 hover:text-white hover:bg-zinc-800/50 border border-transparent"
@@ -288,7 +296,7 @@ function NavItem({ icon, label, active, onClick, onDelete, count }: {
                 {active && (
                     <motion.div layoutId="nav-active" className="absolute left-0 w-1 h-4 bg-indigo-500 rounded-r-full" />
                 )}
-            </button>
+            </div>
         </div>
     );
 }

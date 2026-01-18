@@ -392,6 +392,7 @@ export default function Dashboard() {
             <div className="lg:hidden fixed bottom-6 right-6 flex flex-col gap-3 z-40">
                 <AnimatePresence>
                     <motion.button
+                        key="new-folder-fab"
                         initial={{ opacity: 0, scale: 0.5, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         whileHover={{ scale: 1.05 }}
@@ -404,6 +405,7 @@ export default function Dashboard() {
                     </motion.button>
 
                     <motion.button
+                        key="upload-assets-fab"
                         initial={{ opacity: 0, scale: 0.5, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         whileHover={{ scale: 1.05 }}
