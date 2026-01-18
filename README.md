@@ -109,6 +109,15 @@
 
 ---
 
+### 5. Access Control & Security
+**Challenge**: Limiting full dashboard access to authorized administrators only, while letting guests see documentation.
+**Solution**: 
+- Implemented a Server-Side Admin Check (`isUserAdmin`) using `ADMIN_EMAIL` environment variable.
+- Non-admin users are automatically routed to a **MDX-rendered Documentation View** (Guest Mode).
+- This ensures sensitive operations (Upload/Delete) are physically inaccessible to unauthorized users.
+
+---
+
 ## 📦 Setup & Installation
 
 1.  **Clone the repository**:
@@ -126,9 +135,9 @@
 
 3.  **Environment Setup**:
     Create a `.env.local` file in the root directory. You will need keys for:
-    - Next.js Public App URL
-    - Supabase (URL & Service Role Key)
-    - Clerk (Publishable Key & Secret Key)
+    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` & `CLERK_SECRET_KEY`
+    - `NEXT_PUBLIC_SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY`
+    - `ADMIN_EMAIL`: Comma-separated list of authorized emails (e.g., `admin@example.com`).
     *(Refer to `.env.example` for the variable names)*
 
 4.  **Run Development Server**:
