@@ -60,7 +60,18 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     const getUrl = () => {
         // Direct Map Strategy - Much safer than string splitting
         if (format === 'original') {
-            return image.original_url;
+            if (image.original_url) return image.original_url;
+
+            // Reconstruction for fetched images
+            if (image.md_url) {
+                const parts = image.md_url.split('/webp/');
+                if (parts.length === 2) {
+                    const base = parts[0];
+                    const ext = image.original_ext || 'jpg';
+                    return `${base}/original/${image.id}.${ext}`;
+                }
+            }
+            return '';
         }
 
         if (format === 'webp') {
@@ -76,7 +87,15 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         }
 
         // Fallback
-        return image.md_url || image.sm_url || image.original_url;
+        return image.md_url || image.sm_url || image.original_url || '';
+    };
+
+    // Helper for Preview Image Source (Optimize for Speed)
+    const getPreviewSrc = () => {
+        if (format === 'original') {
+            return image.md_url || image.sm_url || image.thumb_url || getUrl();
+        }
+        return getUrl();
     };
 
     const handleCopy = async (e: React.MouseEvent) => {
@@ -141,7 +160,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 onClick={(e) => e.stopPropagation()}
             >
                 <img
-                    src={getUrl()}
+                    src={getPreviewSrc()}
                     alt={image.original_name}
                     className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                     loading="lazy"
