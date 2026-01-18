@@ -49,3 +49,19 @@ alter table public.images enable row level security;
 -- Usually this means the Storage URL. The table is for the Dashboard.
 -- We will enable RLS but since we use Service Role Key in the API, we bypass it for Admin operations.
 -- We can add a policy for authenticated users if needed later.
+
+-- 6. Create Folders table
+create table if not exists public.folders (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  parent_id uuid references public.folders(id),
+  created_at timestamp with time zone default now()
+);
+
+-- 7. Add folder support to images
+alter table public.images 
+add column if not exists folder_id uuid references public.folders(id);
+
+-- 8. Enable RLS for folders
+alter table public.folders enable row level security;
+

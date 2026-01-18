@@ -1,18 +1,22 @@
 "use client";
 
-import { ImageRecord } from '@/lib/types';
+import { ImageRecord, Folder } from '@/lib/types';
 import { formatBytes } from '@/lib/utils';
 import { Copy, Trash2, ExternalLink, Image as ImageIcon, Check, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FolderCard } from './FolderCard';
 
 interface ImageGalleryProps {
     images: (ImageRecord & { avif?: any })[];
+    folders?: Folder[];
     onDelete: (id: string) => void;
+    onNavigate?: (folder: Folder) => void;
+    onMoveImage?: (folderId: string, imageIds: string[]) => void;
 }
 
-export function ImageGallery({ images, onDelete }: ImageGalleryProps) {
-    if (images.length === 0) {
+export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMoveImage }: ImageGalleryProps) {
+    if (images.length === 0 && folders.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-32 text-zinc-500">
                 <motion.div
@@ -37,9 +41,20 @@ export function ImageGallery({ images, onDelete }: ImageGalleryProps) {
     return (
         <motion.div
             layout
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4"
         >
             <AnimatePresence mode='popLayout'>
+                {/* Folders First */}
+                {folders.map(folder => (
+                    <FolderCard
+                        key={`folder-${folder.id}`}
+                        folder={folder}
+                        onNavigate={(f) => onNavigate?.(f)}
+                        onDropImages={(fid, ids) => onMoveImage?.(fid, ids)}
+                    />
+                ))}
+
+                {/* Then Images */}
                 {images.map((image) => (
                     <ImageCard key={image.id} image={image} onDelete={onDelete} />
                 ))}
@@ -58,7 +73,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         let url = image[`${size}_url` as keyof ImageRecord] as string;
 
         // Safety check
-        if (!url && size === 'lg') url = image.md_url; // Fallback
+        if (!url) url = image.md_url || image.sm_url;
 
         if (format === 'avif') {
             // Construct AVIF URL based on convention
@@ -82,32 +97,41 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         }
     };
 
+    // Drag Start Handler
+    const handleDragStart = (e: React.DragEvent) => {
+        e.dataTransfer.setData('imageId', image.id);
+        e.dataTransfer.effectAllowed = 'move';
+        // Optional: Set custom drag image if needed
+    };
+
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="group relative bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-zinc-700 hover:shadow-indigo-500/10 transition-colors"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
+            draggable
+            onDragStartCapture={handleDragStart}
         >
-            {/* Image Area */}
+            {/* Image Area - Click to open raw */}
             <a
                 href={getUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block aspect-[4/3] relative bg-zinc-950 overflow-hidden cursor-zoom-in"
-                onClick={(e) => isHovered && e.preventDefault()} // Prevent click when interacting with controls? No, let click open image, buttons handle their own.
+                className="block aspect-video relative bg-black overflow-hidden cursor-zoom-in"
+                onClick={(e) => isHovered && e.preventDefault()}
             >
-                <div className="absolute inset-0 bg-zinc-800 animate-pulse" /> {/* Skeleton placeholder underneath */}
+                <div className="absolute inset-0 bg-zinc-900" /> {/* Background for letterboxing */}
 
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                     src={image.sm_url}
                     alt={image.original_name}
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-105 opacity-90 group-hover:opacity-100"
+                    className="absolute inset-0 w-full h-full object-contain transition-transform duration-700 ease-in-out group-hover:scale-110 opacity-100"
                 />
 
                 {/* Delete Button */}
@@ -153,8 +177,8 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                                 key={fmt}
                                 onClick={() => setFormat(fmt)}
                                 className={`text-[9px] px-2 py-1 rounded-[4px] font-bold uppercase transition-all ${format === fmt
-                                        ? 'bg-indigo-600 text-white shadow-sm'
-                                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
                                     }`}
                             >
                                 {fmt}
@@ -169,8 +193,8 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                     whileTap={{ scale: 0.95 }}
                     onClick={handleCopy}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-lg ${copied
-                            ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                            : 'bg-white text-zinc-950 hover:bg-zinc-200'
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                        : 'bg-white text-zinc-950 hover:bg-zinc-200'
                         }`}
                 >
                     {copied ? (

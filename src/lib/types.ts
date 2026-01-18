@@ -47,4 +47,12 @@ export interface ImageRecord {
   md_size: number;
   lg_size: number;
   created_at: string;
+  folder_id?: string | null;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  created_at: string;
 }
