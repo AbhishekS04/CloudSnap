@@ -141,7 +141,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 onClick={(e) => e.stopPropagation()}
             >
                 <img
-                    src={format === 'original' ? image.original_url : format === 'webp' ? image.md_url : (image.avif?.urls?.md || image.md_url)}
+                    src={getUrl()}
                     alt={image.original_name}
                     className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                     loading="lazy"
