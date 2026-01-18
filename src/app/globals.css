@@ -1,16 +1,39 @@
 @import "tailwindcss";
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 9, 9, 11;
-  /* zinc-950 */
-  --background-end-rgb: 9, 9, 11;
+  --foreground-rgb: 244, 244, 245;
+  /* zinc-100 */
+  --background-start-rgb: 5, 5, 5;
+  --background-end-rgb: 5, 5, 5;
+
+  --primary-font: var(--font-outfit), system-ui, sans-serif;
+  --display-font: var(--font-playfair), serif;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
   min-height: 100vh;
+  font-family: var(--primary-font);
+}
+
+.font-display {
+  font-family: var(--display-font);
+}
+
+.italic-display {
+  font-family: var(--display-font);
+  font-style: italic;
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+}
+
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 @layer utilities {

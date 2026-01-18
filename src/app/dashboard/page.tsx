@@ -269,11 +269,11 @@ export default function Dashboard() {
                 </header>
 
                 <main className="flex-1 p-6 md:p-8 lg:p-10 w-full">
-                    <div className="mb-10 flex flex-col gap-1">
-                        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+                    <div className="mb-12 flex flex-col gap-2">
+                        <h2 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-white leading-tight italic-display">
                             {filterType === 'photos' ? 'Photos' : filterType === 'videos' ? 'Videos' : currentFolder ? currentFolder.name : 'Assets'}
                         </h2>
-                        <p className="text-zinc-500 font-medium">
+                        <p className="text-zinc-500 font-medium font-sans opacity-60">
                             {images.length} {images.length === 1 ? 'asset' : 'assets'} in this view
                         </p>
                     </div>

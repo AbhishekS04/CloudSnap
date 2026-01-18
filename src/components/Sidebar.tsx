@@ -55,8 +55,8 @@ export function Sidebar({
                     <Cloud className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                    <h1 className="text-lg font-bold tracking-tight text-white leading-tight">CloudSnap</h1>
-                    <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">Premium Cloud Storage</p>
+                    <h1 className="text-xl font-bold tracking-tight text-white leading-tight italic-display">CloudSnap</h1>
+                    <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider font-sans">Premium Cloud Storage</p>
                 </div>
             </div>
 
@@ -83,7 +83,7 @@ export function Sidebar({
                 <nav className="space-y-6">
                     {/* Library Section */}
                     <div>
-                        <p className="px-4 text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Library</p>
+                        <p className="px-4 text-[12px] text-zinc-500 italic-display tracking-wider mb-2 opacity-70">Library</p>
                         <div className="space-y-1">
                             <NavItem
                                 icon={<LayoutGrid className="w-4 h-4" />}
@@ -116,8 +116,8 @@ export function Sidebar({
 
                     {/* Folders Section */}
                     <div>
-                        <div className="flex items-center justify-between px-4 mb-3">
-                            <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Folders</p>
+                        <div className="flex items-center justify-between px-4 mb-2">
+                            <p className="text-[12px] text-zinc-500 italic-display tracking-wider opacity-70">Folders</p>
                         </div>
                         <div className="space-y-1 px-2">
                             <FolderTree
