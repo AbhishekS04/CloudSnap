@@ -118,33 +118,23 @@
 
 ---
 
-## 📦 Setup & Installation
+## 🏗️ Build Your Own
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/yourusername/cloudsnap.git
-    cd cloudsnap
-    ```
+This project is open-sourced for **educational and inspirational purposes**. 
 
-2.  **Install dependencies**:
-    ```bash
-    npm install
-    # or
-    yarn install
-    ```
+Instead of simply cloning this repository, we strongly encourage you to **study the architecture, understand the solutions to the complex challenges listed above, and build your own bespoke asset management system.**
 
-3.  **Environment Setup**:
-    Create a `.env.local` file in the root directory. You will need keys for:
-    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` & `CLERK_SECRET_KEY`
-    - `NEXT_PUBLIC_SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY`
-    - `ADMIN_EMAIL`: Comma-separated list of authorized emails (e.g., `admin@example.com`).
-    *(Refer to `.env.example` for the variable names)*
+The true value lies in the journey of solving these engineering problems yourself.
 
-4.  **Run Development Server**:
-    ```bash
-    npm run dev
-    ```
-    Open [http://localhost:3000](http://localhost:3000) with your browser.
+### Core Concepts to Replicate:
+1.  **Hybrid Uploads**: Learn how to handle `FormData` streams with robust ID association.
+2.  **Stream Processing**: Master `busboy` and `ffmpeg` for efficient media handling.
+3.  **UI/UX**: Strive for the level of polish seen in our glassmorphism and terminal-style interfaces.
+
+---
 
 ## 📄 License
-MIT
+
+Distributed under the MIT License. See [`LICENSE`](./LICENSE) for more information.
+
+*This project is intended as a reference implementation for advanced Next.js patterns.*
