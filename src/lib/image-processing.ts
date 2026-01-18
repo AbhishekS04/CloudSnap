@@ -3,24 +3,24 @@ import sharp from 'sharp';
 // Configuration constants
 export const QUALITY_SETTINGS = {
     webp: {
-        quality: 90, // Crystal clear
+        quality: 100, // Lossless-like
         smartSubsample: true,
         effort: 6,
         lossless: false,
     },
     avif: {
-        quality: 60,
+        quality: 90, // High quality
         effort: 6,
         lossless: false,
     },
     jpeg: {
-        quality: 80,
-        mozjpeg: true, // Use Mozilla's JPEG encoder for better compression
+        quality: 95, // Very high quality
+        mozjpeg: true,
     },
     png: {
-        quality: 80,
+        quality: 100,
         compressionLevel: 9,
-        palette: true, // Use palette-based compression (like pngquant)
+        palette: false, // True color
     }
 };
 

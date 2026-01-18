@@ -52,7 +52,7 @@ export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMov
 }
 
 function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, onDelete: (id: string) => void }) {
-    const [format, setFormat] = useState<'avif' | 'webp' | 'original'>('avif');
+    const [format, setFormat] = useState<'avif' | 'webp' | 'original'>('original');
     const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
     const [isHovered, setIsHovered] = useState(false);
     const [copied, setCopied] = useState(false);
