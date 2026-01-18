@@ -19,9 +19,12 @@ export async function POST(req: NextRequest) {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+        // Ensure parent_id is either a valid UUID or null (never the string 'null')
+        const cleanParentId = (parent_id && parent_id !== 'null') ? parent_id : null;
+
         const { data, error } = await supabase
             .from('folders')
-            .insert({ name, parent_id: parent_id || null })
+            .insert({ name, parent_id: cleanParentId })
             .select()
             .single();
 

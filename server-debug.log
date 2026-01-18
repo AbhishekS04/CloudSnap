@@ -177,3 +177,11 @@
 2026-01-18T19:23:30.594Z - headers: Busboy file closed filename=f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4
 2026-01-18T19:23:30.605Z - headers: Busboy close event fired
 2026-01-18T19:23:30.606Z - File received (buffered): VID_5CWBOQ.mp4, Size: 15325483, Type: video/mp4
+2026-01-18T19:44:33.444Z - --- Upload Request Started ---
+2026-01-18T19:44:33.452Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryDp9iDLwsoFCLalSm
+2026-01-18T19:44:33.453Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T19:44:33.461Z - Read full body buffer: 793484 bytes
+2026-01-18T19:44:33.465Z - headers: Busboy file found field=file filename=2026-01-19 01.10.45 localhost fc327aa7c5eb.png
+2026-01-18T19:44:33.466Z - headers: Busboy file closed filename=2026-01-19 01.10.45 localhost fc327aa7c5eb.png
+2026-01-18T19:44:33.467Z - headers: Busboy close event fired
+2026-01-18T19:44:33.468Z - File received (buffered): IMG_88R8AY.png, Size: 793265, Type: image/png

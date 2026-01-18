@@ -112,7 +112,10 @@ export default function Dashboard() {
         try {
             const res = await fetch('/api/folders', {
                 method: 'POST',
-                body: JSON.stringify({ name: newFolderName, parent_id: currentFolder?.id })
+                body: JSON.stringify({
+                    name: newFolderName,
+                    parent_id: (currentFolder && currentFolder.id !== 'null') ? currentFolder.id : null
+                })
             });
             if (res.ok) {
                 setNewFolderName('');
