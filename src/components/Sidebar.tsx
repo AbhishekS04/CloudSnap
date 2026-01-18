@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Folder } from "@/lib/types";
-import { UserButton, useUser, SignOutButton } from "@clerk/nextjs";
+import { useUser, SignOutButton } from "@clerk/nextjs";
+import { ClientUserButton } from "./ClientUserButton";
 
 interface SidebarProps {
     folders: Folder[];
@@ -136,7 +137,7 @@ export function Sidebar({
             {/* User Profile / Logout */}
             <div className="p-4 mt-auto border-t border-zinc-800/40">
                 <div className="flex items-center gap-3 px-4 py-3 bg-zinc-900/50 border border-zinc-800/40 rounded-2xl">
-                    <UserButton afterSignOutUrl="/" appearance={{
+                    <ClientUserButton afterSignOutUrl="/" appearance={{
                         elements: {
                             avatarBox: "w-8 h-8 rounded-xl"
                         }
@@ -182,7 +183,7 @@ export function Sidebar({
                             initial={{ x: "-100%" }}
                             animate={{ x: 0 }}
                             exit={{ x: "-100%" }}
-                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
                             className="fixed left-0 top-0 bottom-0 w-[280px] bg-zinc-950 border-r border-zinc-800/50 z-[60] lg:hidden shadow-2xl"
                         >
                             {sidebarContent}

@@ -9,9 +9,10 @@ import { parseDropEvent } from '@/lib/upload-utils';
 
 interface UploadZoneProps {
     onUploadComplete: (newImage: ImageRecord | UploadResponse) => void;
+    folderId?: string | null;
 }
 
-export function UploadZone({ onUploadComplete }: UploadZoneProps) {
+export function UploadZone({ onUploadComplete, folderId }: UploadZoneProps) {
     const [isDragOver, setIsDragOver] = useState(false);
 
     const { uploadFile, uploadUrl, isUploading, progress, error } = useImageUpload({
@@ -35,21 +36,21 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         const { files, url } = await parseDropEvent(e);
 
         if (files.length > 0) {
-            uploadFile(files[0]);
+            uploadFile(files[0], folderId);
             return;
         }
 
         if (url) {
             console.log('Detected Drop URL:', url);
-            uploadUrl(url);
+            uploadUrl(url, folderId);
             return;
         }
-    }, [uploadFile, uploadUrl]);
+    }, [uploadFile, uploadUrl, folderId]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (files && files.length > 0) {
-            uploadFile(files[0]);
+            uploadFile(files[0], folderId);
         }
     };
 

@@ -185,3 +185,49 @@
 2026-01-18T19:44:33.466Z - headers: Busboy file closed filename=2026-01-19 01.10.45 localhost fc327aa7c5eb.png
 2026-01-18T19:44:33.467Z - headers: Busboy close event fired
 2026-01-18T19:44:33.468Z - File received (buffered): IMG_88R8AY.png, Size: 793265, Type: image/png
+2026-01-18T20:25:28.742Z - --- Upload Request Started ---
+2026-01-18T20:25:28.748Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryQpVV82AuOUd72eOO
+2026-01-18T20:25:28.748Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T20:25:28.750Z - Read full body buffer: 348341 bytes
+2026-01-18T20:25:28.754Z - headers: Busboy file found field=file filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:25:28.755Z - headers: Busboy file closed filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:25:28.756Z - headers: Busboy close event fired
+2026-01-18T20:25:28.756Z - File received (buffered): IMG_4JPERB.jpg, Size: 347998, Type: image/jpeg
+2026-01-18T20:25:50.525Z - --- Upload Request Started ---
+2026-01-18T20:25:50.529Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryiEAlUOhAi5QAfA8z
+2026-01-18T20:25:50.529Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T20:25:50.533Z - Read full body buffer: 348341 bytes
+2026-01-18T20:25:50.535Z - headers: Busboy file found field=file filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:25:50.536Z - headers: Busboy file closed filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:25:50.537Z - headers: Busboy close event fired
+2026-01-18T20:25:50.537Z - File received (buffered): IMG_VYQ8BP.jpg, Size: 347998, Type: image/jpeg
+2026-01-18T20:28:05.840Z - --- Upload Request Started ---
+2026-01-18T20:28:05.853Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryQxsr8KEnOm9aBTEF
+2026-01-18T20:28:05.854Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T20:28:05.855Z - Read full body buffer: 348341 bytes
+2026-01-18T20:28:05.857Z - headers: Busboy file found field=file filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:28:05.857Z - headers: Busboy file closed filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:28:05.858Z - headers: Busboy close event fired
+2026-01-18T20:28:05.859Z - File received (buffered): IMG_M9X0UW.jpg, Size: 347998, Type: image/jpeg
+2026-01-18T20:32:50.071Z - --- Upload Request Started ---
+2026-01-18T20:32:50.081Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryeCaodtGDPrt5EA5h
+2026-01-18T20:32:50.081Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T20:32:50.083Z - Read full body buffer: 348341 bytes
+2026-01-18T20:32:50.087Z - headers: Busboy field found name=folderId val=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
+2026-01-18T20:32:50.087Z - headers: Captured folderId=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
+2026-01-18T20:32:50.089Z - headers: Busboy file found field=file filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:32:50.090Z - headers: Busboy file closed filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:32:50.092Z - headers: Busboy close event fired
+2026-01-18T20:32:50.092Z - headers: Final state at close -> fileName=Screenshot_20260116_232311_Expo Go.jpg, folderId=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
+2026-01-18T20:32:50.093Z - File received (buffered): IMG_RMYP41.jpg, Size: 347998, Type: image/jpeg
+2026-01-18T20:37:29.272Z - --- Upload Request Started ---
+2026-01-18T20:37:29.281Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryHT3RFxBcxAOpgKjG
+2026-01-18T20:37:29.282Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T20:37:29.285Z - Read full body buffer: 348341 bytes
+2026-01-18T20:37:29.289Z - headers: Busboy field found name=folderId val=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
+2026-01-18T20:37:29.290Z - headers: Captured folderId=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
+2026-01-18T20:37:29.292Z - headers: Busboy file found field=file filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:37:29.293Z - headers: Busboy file closed filename=Screenshot_20260116_232311_Expo Go.jpg
+2026-01-18T20:37:29.294Z - headers: Busboy close event fired
+2026-01-18T20:37:29.295Z - headers: Final state at close -> fileName=Screenshot_20260116_232311_Expo Go.jpg, folderId=e06a5420-ce56-4c62-9f3c-b0a1d28df6b2
+2026-01-18T20:37:29.295Z - File received (buffered): IMG_7IIRPR.jpg, Size: 347998, Type: image/jpeg

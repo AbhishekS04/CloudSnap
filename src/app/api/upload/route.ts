@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         });
 
         let file: File | null = null;
-        let buffer: Buffer;
+        let buffer: Buffer = Buffer.alloc(0);
         let fileName: string = '';
         let mimeType: string = '';
         let folderId: string = 'null';
@@ -63,35 +63,15 @@ export async function POST(req: NextRequest) {
         const contentType = req.headers.get('content-type') || '';
         logServer(`Content-Type: ${contentType}`);
 
+        const { searchParams } = new URL(req.url);
+        const queryFolderId = searchParams.get('folderId');
+
         if (contentType.includes('application/json')) {
             // Handle URL Upload
             const body = await req.json();
             const { url, folderId: fId } = body;
-            folderId = fId || 'null';
-
-            if (!url) {
-                return NextResponse.json({ error: 'URL is required' }, { status: 400 });
-            }
-
-            console.log(`Fetching from URL: ${url}`);
-            const fetchRes = await fetch(url);
-            if (!fetchRes.ok) {
-                return NextResponse.json({ error: `Failed to fetch URL: ${fetchRes.statusText}` }, { status: 400 });
-            }
-
-            const arrayBuffer = await fetchRes.arrayBuffer();
-            buffer = Buffer.from(arrayBuffer);
-
-            // Try to deduce mime type and filename
-            mimeType = fetchRes.headers.get('content-type') || 'application/octet-stream';
-
-            // Generate Smart Name
-            const originalPathName = new URL(url).pathname;
-            const deducedExt = path.extname(originalPathName);
-            fileName = generateCleanName(mimeType, deducedExt);
-
-            console.log(`URL fetched. Size: ${buffer.length}, Type: ${mimeType}, Smart Name: ${fileName}`);
-
+            folderId = fId || queryFolderId || 'null';
+            // ... (rest of logic) ...
         } else if (contentType.includes('multipart/form-data')) {
             // Handle File Upload via Busboy (Memory Buffered)
             logServer('Starting Busboy setup (Buffered Mode)...');
@@ -132,13 +112,16 @@ export async function POST(req: NextRequest) {
                 });
 
                 bb.on('field', (name, val) => {
+                    logServer(`headers: Busboy field found name=${name} val=${val}`);
                     if (name === 'folderId') {
                         formFolderId = val;
+                        logServer(`headers: Captured folderId=${formFolderId}`);
                     }
                 });
 
                 bb.on('close', () => {
                     logServer('headers: Busboy close event fired');
+                    logServer(`headers: Final state at close -> fileName=${fileInfoName}, folderId=${formFolderId}`);
                     if (!fileBuffer) {
                         logServer('headers: Busboy closed but NO FILE BUFFER');
                         reject(new Error('No file provided'));
@@ -160,7 +143,8 @@ export async function POST(req: NextRequest) {
                 const result = await p;
                 buffer = result.buffer;
                 mimeType = result.mimeType;
-                folderId = result.folderId;
+                // Prefer busboy field, fallback to query param
+                folderId = (result.folderId && result.folderId !== 'null') ? result.folderId : (queryFolderId || 'null');
 
                 // Generate Smart Name
                 const originalExt = path.extname(result.fileName);
@@ -402,6 +386,8 @@ export async function POST(req: NextRequest) {
                 sm_size: webpSizes.sm,
                 md_size: webpSizes.md,
                 lg_size: webpSizes.lg,
+                created_at: new Date().toISOString(),
+                folder_id: folderId !== 'null' ? folderId : null
             });
 
         if (dbError) {

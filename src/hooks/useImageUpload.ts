@@ -10,7 +10,7 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
-    const uploadFile = async (file: File) => {
+    const uploadFile = async (file: File, folderId?: string | null) => {
         // Allow image and video types
         if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
             setError('Only image and video files are allowed');
@@ -29,6 +29,13 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
 
         try {
             const formData = new FormData();
+            // IMPORTANT: Append fields BEFORE files for Busboy to process them correctly
+            if (folderId) {
+                console.log('[useImageUpload] Appending folderId:', folderId);
+                formData.append('folderId', folderId);
+            } else {
+                console.log('[useImageUpload] No folderId provided');
+            }
             formData.append('file', file);
 
             // Simulate progress
@@ -36,7 +43,10 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
                 setProgress((prev) => (prev < 90 ? prev + 10 : prev));
             }, 500);
 
-            const response = await fetch('/api/upload', {
+            // Use Query Param for robustness
+            const uploadUrl = folderId ? `/api/upload?folderId=${folderId}` : '/api/upload';
+
+            const response = await fetch(uploadUrl, {
                 method: 'POST',
                 body: formData,
             });
@@ -61,7 +71,7 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
         }
     };
 
-    const uploadUrl = async (url: string) => {
+    const uploadUrl = async (url: string, folderId?: string | null) => {
         setIsUploading(true);
         setError(null);
         setProgress(10); // Indeterminate start
@@ -77,7 +87,7 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ url }),
+                body: JSON.stringify({ url, folderId }),
             });
 
             clearInterval(timer);

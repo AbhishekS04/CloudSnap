@@ -5,7 +5,8 @@ import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder, UploadResponse } from '@/lib/types';
 import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud, Menu } from 'lucide-react';
-import { UserButton, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
+import { ClientUserButton } from "@/components/ClientUserButton";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseDropEvent } from '@/lib/upload-utils';
@@ -77,8 +78,13 @@ export default function Dashboard() {
 
     const fetchData = useCallback(async () => {
         try {
-            const folderId = currentFolder?.id || 'null';
-            const imgRes = await fetch(`/api/images?limit=100&folder_id=${folderId}`);
+            const queryParams = new URLSearchParams({ limit: '100' });
+            if (currentFolder?.id) {
+                queryParams.set('folder_id', currentFolder.id);
+            }
+            // If currentFolder is null, we don't send folder_id, so API returns all images (global view)
+
+            const imgRes = await fetch(`/api/images?${queryParams}`);
             let imgs = await imgRes.json();
 
             if (Array.isArray(imgs)) {
@@ -188,9 +194,9 @@ export default function Dashboard() {
         const { files, url } = await parseDropEvent(e);
         if (files.length > 0) {
             const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
-            for (const file of mediaFiles) await uploadFile(file);
+            for (const file of mediaFiles) await uploadFile(file, currentFolder?.id);
         } else if (url) {
-            await uploadUrl(url);
+            await uploadUrl(url, currentFolder?.id);
         }
     };
 
@@ -262,7 +268,7 @@ export default function Dashboard() {
                             </button>
                             <div className="lg:hidden h-6 sm:h-8 w-px bg-zinc-800" />
                             <div className="lg:hidden scale-90 sm:scale-100">
-                                <UserButton afterSignOutUrl="/" />
+                                <ClientUserButton afterSignOutUrl="/" />
                             </div>
                         </div>
                     </div>
@@ -354,7 +360,10 @@ export default function Dashboard() {
                             <button onClick={() => setShowUploadModal(false)} className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors z-10"><X className="w-6 h-6" /></button>
                             <div className="p-8">
                                 <h3 className="text-xl font-bold mb-6 text-center text-white">Upload to {currentFolder ? currentFolder.name : 'Root'}</h3>
-                                <UploadZone onUploadComplete={() => { fetchData(); setShowUploadModal(false); }} />
+                                <UploadZone
+                                    onUploadComplete={() => { fetchData(); setShowUploadModal(false); }}
+                                    folderId={currentFolder?.id}
+                                />
                             </div>
                         </motion.div>
                     </motion.div>
