@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
-import { ImageRecord, Folder } from '@/lib/types';
+import { ImageRecord, Folder, UploadResponse } from '@/lib/types';
 import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2 } from 'lucide-react';
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useImageUpload } from '@/hooks/useImageUpload';
@@ -24,20 +24,45 @@ export default function Dashboard() {
     // Hook for global drop
     const { uploadFile, isUploading, progress, error: uploadError } = useImageUpload({
         onUploadComplete: (data) => {
-            // Optimistic update: Prepend the new image immediately
-            // The API returns the ImageRecord directly or within a property?
-            // Checking UploadResponse type: { success: boolean, image: ImageRecord }
-            // If data is just ImageRecord, we use it. If it's UploadResponse, we access .image
+            // Transform UploadResponse to ImageRecord structure
+            // API returns: { id, original: {...}, optimized: { urls: {...}, sizes: {...} }, avif: {...} }
+            // ImageRecord expects flat structure: { id, original_url, thumb_url, ... }
 
-            // Cast data safely - we know what our API returns
-            const newImage = (data as any).image || data;
+            const response = data as UploadResponse & { avif: any };
 
-            if (newImage && newImage.id) {
-                setImages(prev => [newImage, ...prev]);
-            } else {
-                fetchData(); // Fallback if structure is unexpected
-            }
+            // Derive filename and ext from original.url if needed
+            const urlParts = response.original.url.split('/').pop()?.split('.') || ['image', 'jpg'];
+            const ext = urlParts.length > 1 ? urlParts.pop() : 'jpg';
+            const name = urlParts.join('.');
 
+            // Construct optimistic ImageRecord
+            const newImage: ImageRecord & { avif: any } = {
+                id: response.id,
+                created_at: new Date().toISOString(),
+                // removed 'filename' as it's not in ImageRecord
+                original_name: name,
+                original_ext: ext || 'jpg',
+                original_url: response.original.url,
+                mime_type: `image/${ext}`,
+                width: response.original.width,
+                height: response.original.height,
+                original_size: response.original.size,
+                // WebP (default optimized)
+                thumb_url: response.optimized.urls.thumb,
+                sm_url: response.optimized.urls.sm,
+                md_url: response.optimized.urls.md,
+                lg_url: response.optimized.urls.lg,
+                thumb_size: response.optimized.sizes.thumb,
+                sm_size: response.optimized.sizes.sm,
+                md_size: response.optimized.sizes.md,
+                lg_size: response.optimized.sizes.lg,
+                optimized_format: 'webp',
+                // AVIF
+                avif: response.avif,
+                folder_id: currentFolder?.id || null
+            };
+
+            setImages(prev => [newImage, ...prev]);
             setShowUploadModal(false);
         }
     });

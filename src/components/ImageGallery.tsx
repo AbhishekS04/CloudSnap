@@ -58,26 +58,25 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     const [copied, setCopied] = useState(false);
 
     const getUrl = () => {
-        // Fallback
-        if (!image.thumb_url) return image.md_url || image.sm_url;
-
-        // Robust URL Reconstruction
-        // Tries to extract the Supabase Storage base path
-        const parts = image.thumb_url.split('/assets/');
-        if (parts.length < 2) return image.md_url || image.sm_url;
-
-        const limitPrefix = parts[0] + '/assets';
-
+        // Direct Map Strategy - Much safer than string splitting
         if (format === 'original') {
-            // Normalize extension to match backend storage convention (lowercase, jpeg->jpg)
-            let ext = (image.original_ext || 'jpg').toLowerCase();
-            if (ext === 'jpeg') ext = 'jpg';
-
-            // Optimized originals are stored in their respective folder (jpg/png)
-            return `${limitPrefix}/${ext}/${size}/${image.id}.${ext}`;
+            return image.original_url;
         }
 
-        return `${limitPrefix}/${format}/${size}/${image.id}.${format}`;
+        if (format === 'webp') {
+            // Type-safe access for webp sizes
+            const key = `${size}_url` as keyof ImageRecord;
+            // @ts-ignore
+            return image[key] || image.md_url || image.sm_url;
+        }
+
+        if (format === 'avif' && image.avif) {
+            const key = `${size}`;
+            return image.avif.urls?.[key] || image.avif.urls?.md;
+        }
+
+        // Fallback
+        return image.md_url || image.sm_url || image.original_url;
     };
 
     const handleCopy = async (e: React.MouseEvent) => {
