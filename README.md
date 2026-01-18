@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Private Image Hosting & Optimization Platform
 
-## Getting Started
+A personal high-performance image hosting solution built with Next.js, Supabase, and Sharp. Designed to replace Cloudinary for personal portfolios with zero-compromise quality.
 
-First, run the development server:
+## Features
+
+- **Crystal Clear Optimization**: WebP conversion with high quality settings (90+), ensuring no visual loss.
+- **Auto-Resizing**: Automatically generates `thumb` (200w), `sm` (600w), `md` (1200w), and `lg` (2000w) sizes.
+- **Smart Logic**: Never upscales smaller images. Maintains aspect ratio. Strips EXIF metadata.
+- **Supabase Storage**: Secure and scalable storage for assets.
+- **Simple Dashboard**: Drag & drop upload, auto-copy URLs, and gallery management.
+
+## Tech Stack
+
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript
+- **Styling**: TailwindCSS
+- **Database & Storage**: Supabase
+- **Image Processing**: Sharp (Server-side)
+
+## Setup Instructions
+
+### 1. Environment Variables
+
+Create a `.env.local` file in the root directory:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_for_admin_only
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> **Warning**: Never expose `SUPABASE_SERVICE_ROLE_KEY` to the client. It is used only in server-side API routes.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 2. Database Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run the SQL found in [`supabase/schema.sql`](./supabase/schema.sql) in your Supabase SQL Editor. This will:
+- Create the `assets` storage bucket (public).
+- Create the `images` table.
+- Set up security policies.
 
-## Learn More
+### 3. Install & Run
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Visit `http://localhost:3000/dashboard` to start uploading.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment to Vercel
 
-## Deploy on Vercel
+1. Push this repo to GitHub.
+2. Import project in Vercel.
+3. Add the Environment Variables from step 1 in Vercel Project Settings.
+4. Deploy.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> **Note on Limits**: Vercel Serverless Functions have a request body limit (4.5MB for Hobby). For larger uploads (up to 10MB), ensure you are on a Pro plan or handling uploads via client-side signed URLs (though this project currently uses server-side processing for Sharp optimization).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Portfolio Usage Guide
+
+In your portfolio Next.js project, use the optimized images to ensure fast loading and perfect quality.
+
+### Code Snippet
+
+Use the standard `<img>` tag or Next.js `<Image>` (with unoptimized prop if you want to bypass Next's optimization and use these pre-optimized assets).
+
+**Recommended HTML:**
+
+```jsx
+<img
+  src="MD_URL" // Fallback (1200w)
+  srcSet="SM_URL 600w, MD_URL 1200w, LG_URL 2000w"
+  sizes="(max-width: 640px) 600px, (max-width: 1200px) 1200px, 2000px"
+  alt="Project Screenshot"
+  loading="lazy"
+  width={1200} // Aspect ratio width
+  height={800} // Aspect ratio height
+  className="rounded-lg shadow-lg"
+/>
+```
+
+### Choosing Sizes
+
+| Size Name | Width | Usage |
+|-----------|-------|-------|
+| **Thumb** | 200px | Placeholders, tiny avatars, or blur-up base |
+| **SM**    | 600px | Mobile screens, grid cards |
+| **MD**    | 1200px| Standard desktop cards, blog post images |
+| **LG**    | 2000px| Hero headers, full-screen galleries |
+
+### Quality Guarantee
+
+The platform is tuned to `quality: 90` with `smartSubsample` enabled. This ensures that text, UI elements, and faces remain sharp, unlike standard 80% compression.
