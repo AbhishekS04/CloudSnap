@@ -1,0 +1,135 @@
+2026-01-18T17:52:08.954Z - --- Upload Request Started ---
+2026-01-18T17:52:08.955Z - Content-Type: multipart/form-data; boundary=----formdata-undici-030743758729
+2026-01-18T17:52:34.333Z - --- Upload Request Started ---
+2026-01-18T17:52:34.334Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryBPChksTF5YN7jncw
+2026-01-18T17:52:37.688Z - --- Upload Request Started ---
+2026-01-18T17:52:37.689Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryajT2zS6ifT9FmWDe
+2026-01-18T17:52:57.537Z - --- Upload Request Started ---
+2026-01-18T17:52:57.537Z - Content-Type: multipart/form-data; boundary=----formdata-undici-022258581740
+2026-01-18T17:53:30.130Z - --- Upload Request Started ---
+2026-01-18T17:53:30.130Z - Content-Type: multipart/form-data; boundary=----formdata-undici-070223899775
+2026-01-18T17:54:29.949Z - --- Upload Request Started ---
+2026-01-18T17:54:29.949Z - Content-Type: multipart/form-data; boundary=----formdata-undici-046829432755
+2026-01-18T17:54:29.949Z - Starting Busboy setup...
+2026-01-18T17:54:29.952Z - Piping req.body to busboy...
+2026-01-18T17:54:29.986Z - headers: Busboy file found field=file filename=video.mp4
+2026-01-18T17:54:30.044Z - headers: Busboy error event: Unexpected end of form
+2026-01-18T17:54:30.045Z - headers: Busboy close event fired
+2026-01-18T17:54:30.046Z - headers: Busboy closed but NO FILE BUFFER
+2026-01-18T17:54:30.047Z - Error parsing stream (Detailed catch): Unexpected end of form
+2026-01-18T17:54:30.048Z - Error: Unexpected end of form
+    at Multipart._final (A:\cloudinary_clone\.next\dev\server\chunks\[root-of-the-server]__0aa66c4b._.js:11111:40)
+    at prefinish (node:internal/streams/writable:914:14)
+    at finishMaybe (node:internal/streams/writable:928:5)
+    at Writable.end (node:internal/streams/writable:843:5)
+    at Readable.onend (node:internal/streams/readable:946:10)
+    at Object.onceWrapper (node:events:622:28)
+    at Readable.emit (node:events:508:28)
+    at endReadableNT (node:internal/streams/readable:1701:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+2026-01-18T17:55:04.970Z - --- Upload Request Started ---
+2026-01-18T17:55:04.971Z - Content-Type: multipart/form-data; boundary=----formdata-undici-050495020902
+2026-01-18T17:55:04.971Z - Starting Busboy setup...
+2026-01-18T17:55:04.973Z - Piping req.body to busboy...
+2026-01-18T17:55:05.001Z - headers: Busboy file found field=file filename=video.mp4
+2026-01-18T17:55:05.063Z - headers: Busboy error event: Unexpected end of form
+2026-01-18T17:55:05.064Z - headers: Busboy close event fired
+2026-01-18T17:55:05.064Z - headers: Busboy closed but NO FILE BUFFER
+2026-01-18T17:55:05.065Z - Error parsing stream (Detailed catch): Unexpected end of form
+2026-01-18T17:55:05.065Z - Error: Unexpected end of form
+    at Multipart._final (A:\cloudinary_clone\.next\dev\server\chunks\[root-of-the-server]__0aa66c4b._.js:11111:40)
+    at prefinish (node:internal/streams/writable:914:14)
+    at finishMaybe (node:internal/streams/writable:928:5)
+    at Writable.end (node:internal/streams/writable:843:5)
+    at Readable.onend (node:internal/streams/readable:946:10)
+    at Object.onceWrapper (node:events:622:28)
+    at Readable.emit (node:events:508:28)
+    at endReadableNT (node:internal/streams/readable:1701:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+2026-01-18T17:55:13.005Z - --- Upload Request Started ---
+2026-01-18T17:55:13.005Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryRDZMYPBMHNnMAm8R
+2026-01-18T17:55:13.005Z - Starting Busboy setup...
+2026-01-18T17:55:13.006Z - Piping req.body to busboy...
+2026-01-18T17:55:13.020Z - headers: Busboy file found field=file filename=f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4
+2026-01-18T17:55:13.039Z - headers: Busboy error event: Unexpected end of form
+2026-01-18T17:55:13.040Z - headers: Busboy close event fired
+2026-01-18T17:55:13.040Z - headers: Busboy closed but NO FILE BUFFER
+2026-01-18T17:55:13.040Z - Error parsing stream (Detailed catch): Unexpected end of form
+2026-01-18T17:55:13.041Z - Error: Unexpected end of form
+    at Multipart._final (A:\cloudinary_clone\.next\dev\server\chunks\[root-of-the-server]__0aa66c4b._.js:11111:40)
+    at prefinish (node:internal/streams/writable:914:14)
+    at finishMaybe (node:internal/streams/writable:928:5)
+    at Writable.end (node:internal/streams/writable:843:5)
+    at Readable.onend (node:internal/streams/readable:946:10)
+    at Object.onceWrapper (node:events:622:28)
+    at Readable.emit (node:events:508:28)
+    at endReadableNT (node:internal/streams/readable:1701:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+2026-01-18T17:56:02.769Z - --- Upload Request Started ---
+2026-01-18T17:56:02.770Z - Content-Type: multipart/form-data; boundary=----formdata-undici-003459617972
+2026-01-18T17:56:02.770Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T17:56:02.792Z - Read full body buffer: 10420354 bytes
+2026-01-18T17:56:02.828Z - headers: Busboy file found field=file filename=video.mp4
+2026-01-18T17:56:02.888Z - headers: Busboy error event: Unexpected end of form
+2026-01-18T17:56:02.888Z - headers: Busboy close event fired
+2026-01-18T17:56:02.888Z - headers: Busboy closed but NO FILE BUFFER
+2026-01-18T17:56:02.889Z - Error parsing busboy (Detailed catch): Unexpected end of form
+2026-01-18T17:56:02.889Z - Error: Unexpected end of form
+    at Multipart._final (A:\cloudinary_clone\.next\dev\server\chunks\[root-of-the-server]__0aa66c4b._.js:11111:40)
+    at prefinish (node:internal/streams/writable:914:14)
+    at finishMaybe (node:internal/streams/writable:928:5)
+    at afterWrite (node:internal/streams/writable:716:5)
+    at onwrite (node:internal/streams/writable:686:7)
+    at FileStream._read (A:\cloudinary_clone\.next\dev\server\chunks\[root-of-the-server]__0aa66c4b._.js:10817:13)
+    at Readable.read (node:internal/streams/readable:737:12)
+    at flow (node:internal/streams/readable:1286:53)
+    at resume_ (node:internal/streams/readable:1265:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+2026-01-18T17:56:49.955Z - --- Upload Request Started ---
+2026-01-18T17:56:49.955Z - Content-Type: multipart/form-data; boundary=----formdata-undici-009559641940
+2026-01-18T17:56:49.956Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T17:56:50.140Z - Read full body buffer: 52429063 bytes
+2026-01-18T17:56:50.171Z - headers: Busboy file found field=file filename=video.mp4
+2026-01-18T17:56:50.195Z - headers: Busboy file closed filename=video.mp4
+2026-01-18T17:56:50.212Z - headers: Busboy close event fired
+2026-01-18T17:56:50.212Z - File received (buffered): video.mp4, Size: 52428800, Type: video/mp4
+2026-01-18T17:56:50.323Z - Fatal API Error: Cannot find ffprobe
+2026-01-18T17:56:50.324Z - Error: Cannot find ffprobe
+    at A:\cloudinary_clone\.next\dev\server\chunks\node_modules_fluent-ffmpeg_631246e9._.js:2663:39
+    at A:\cloudinary_clone\.next\dev\server\chunks\node_modules_fluent-ffmpeg_631246e9._.js:2111:17
+    at A:\cloudinary_clone\.next\dev\server\chunks\node_modules_fluent-ffmpeg_631246e9._.js:2100:29
+    at suppressedCallback (node:fs:254:5)
+    at FSReqCallback.oncomplete (node:fs:185:23)
+    at FSReqCallback.callbackTrampoline (node:internal/async_hooks:130:17)
+2026-01-18T17:58:12.467Z - --- Upload Request Started ---
+2026-01-18T17:58:12.468Z - Content-Type: multipart/form-data; boundary=----formdata-undici-094576687697
+2026-01-18T17:58:12.468Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T17:58:12.692Z - Read full body buffer: 52429063 bytes
+2026-01-18T17:58:12.734Z - headers: Busboy file found field=file filename=video.mp4
+2026-01-18T17:58:12.751Z - headers: Busboy file closed filename=video.mp4
+2026-01-18T17:58:12.770Z - headers: Busboy close event fired
+2026-01-18T17:58:12.770Z - File received (buffered): video.mp4, Size: 52428800, Type: video/mp4
+2026-01-18T17:58:12.845Z - Fatal API Error: spawn \ROOT\node_modules\ffprobe-static\bin\win32\x64\ffprobe.exe ENOENT
+2026-01-18T17:58:12.846Z - Error: spawn \ROOT\node_modules\ffprobe-static\bin\win32\x64\ffprobe.exe ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:286:19)
+    at onErrorNT (node:internal/child_process:484:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+2026-01-18T18:04:03.390Z - --- Upload Request Started ---
+2026-01-18T18:04:03.395Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundarytUChgWbKgqlb7iqB
+2026-01-18T18:04:03.396Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T18:04:03.497Z - Read full body buffer: 15325699 bytes
+2026-01-18T18:04:03.506Z - headers: Busboy file found field=file filename=f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4
+2026-01-18T18:04:03.510Z - headers: Busboy file closed filename=f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4
+2026-01-18T18:04:03.515Z - headers: Busboy close event fired
+2026-01-18T18:04:03.516Z - File received (buffered): f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4, Size: 15325483, Type: video/mp4
+2026-01-18T18:04:17.614Z - Fatal API Error: Could not find the 'original_url' column of 'images' in the schema cache
+2026-01-18T18:10:00.465Z - --- Upload Request Started ---
+2026-01-18T18:10:00.468Z - Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryvlrkXtQWZTwAJqSy
+2026-01-18T18:10:00.469Z - Starting Busboy setup (Buffered Mode)...
+2026-01-18T18:10:00.659Z - Read full body buffer: 15325699 bytes
+2026-01-18T18:10:00.679Z - headers: Busboy file found field=file filename=f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4
+2026-01-18T18:10:00.684Z - headers: Busboy file closed filename=f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4
+2026-01-18T18:10:00.689Z - headers: Busboy close event fired
+2026-01-18T18:10:00.690Z - File received (buffered): f12bda85fa34639b0168d300ea8e9515_ywmy8p.mp4, Size: 15325483, Type: video/mp4
+2026-01-18T18:12:32.394Z - --- Upload Request Started ---
+2026-01-18T18:12:32.400Z - Content-Type: application/json

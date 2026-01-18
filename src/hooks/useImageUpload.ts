@@ -11,12 +11,15 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
     const [error, setError] = useState<string | null>(null);
 
     const uploadFile = async (file: File) => {
-        if (!file.type.startsWith('image/')) {
-            setError('Only image files are allowed');
+        // Allow image and video types
+        if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+            setError('Only image and video files are allowed');
             return;
         }
-        if (file.size > 10 * 1024 * 1024) {
-            setError('File size must be less than 10MB');
+
+        // Limit images to 10MB, unlimited/high limit for videos
+        if (file.type.startsWith('image/') && file.size > 10 * 1024 * 1024) {
+            setError('Image file size must be less than 10MB');
             return;
         }
 
@@ -58,8 +61,47 @@ export function useImageUpload({ onUploadComplete }: UseImageUploadProps = {}) {
         }
     };
 
+    const uploadUrl = async (url: string) => {
+        setIsUploading(true);
+        setError(null);
+        setProgress(10); // Indeterminate start
+
+        try {
+            // Simulate progress
+            const timer = setInterval(() => {
+                setProgress((prev) => (prev < 90 ? prev + 5 : prev));
+            }, 800);
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url }),
+            });
+
+            clearInterval(timer);
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Upload failed');
+            }
+
+            const data = await response.json();
+            setProgress(100);
+            onUploadComplete?.(data);
+        } catch (err: any) {
+            setError(err.message);
+            setProgress(0);
+        } finally {
+            setIsUploading(false);
+            setTimeout(() => setProgress(0), 1000);
+        }
+    };
+
     return {
         uploadFile,
+        uploadUrl,
         isUploading,
         progress,
         error,

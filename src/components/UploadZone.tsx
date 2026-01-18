@@ -13,7 +13,7 @@ interface UploadZoneProps {
 export function UploadZone({ onUploadComplete }: UploadZoneProps) {
     const [isDragOver, setIsDragOver] = useState(false);
 
-    const { uploadFile, isUploading, progress, error } = useImageUpload({
+    const { uploadFile, uploadUrl, isUploading, progress, error } = useImageUpload({
         onUploadComplete
     });
 
@@ -30,11 +30,22 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
+
+        // 1. Priority: Check for Files first (Local Drop)
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             uploadFile(files[0]);
+            return;
         }
-    }, [uploadFile]);
+
+        // 2. Secondary: Check for URL drop (e.g. from Pinterest)
+        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+        if (url && (url.startsWith('http') || url.startsWith('https'))) {
+            // Basic validation to avoid random text
+            uploadUrl(url);
+            return;
+        }
+    }, [uploadFile, uploadUrl]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -59,7 +70,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                 type="file"
                 id="file-upload"
                 className="hidden"
-                accept="image/jpeg,image/png,image/jpg"
+                accept="image/jpeg,image/png,image/jpg,video/mp4,video/webm"
                 onChange={handleFileSelect}
             />
 
@@ -80,10 +91,10 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                         "text-sm font-medium transition-colors",
                         isUploading ? "text-indigo-400 animate-pulse" : "text-zinc-300"
                     )}>
-                        {isUploading ? "Please wait, optimizing..." : "Click to upload or drag and drop"}
+                        {isUploading ? "Please wait, optimizing..." : "Click to upload, or drag and drop files/URLs"}
                     </p>
                     <p className="text-xs text-zinc-500">
-                        JPG, PNG up to 10MB
+                        JPG, PNG (Max 10MB), MP4, WebM (Unlimited)
                     </p>
                     {isUploading && (
                         <p className="text-[10px] text-zinc-600 font-mono">

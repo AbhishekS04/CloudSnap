@@ -5,6 +5,7 @@ import { Copy, Trash2, Check, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
+import { VideoPlayer } from './VideoPlayer';
 
 interface ImageGalleryProps {
     images: (ImageRecord & { avif?: any })[];
@@ -52,12 +53,17 @@ export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMov
 }
 
 function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, onDelete: (id: string) => void }) {
-    const [format, setFormat] = useState<'avif' | 'webp' | 'original'>('original');
+    const isVideo = image.mime_type?.startsWith('video/');
+    const [format, setFormat] = useState<'avif' | 'webp' | 'original' | 'compressed'>('original');
     const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
     const [isHovered, setIsHovered] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const getUrl = () => {
+        if (isVideo && format === 'compressed') {
+            return image.md_url || '';
+        }
+
         // Direct Map Strategy - Much safer than string splitting
         if (format === 'original') {
             if (image.original_url) return image.original_url;
@@ -151,21 +157,28 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
             draggable
             onDragStartCapture={handleDragStart}
         >
-            {/* Image Area - Click to open raw */}
-            <a
-                href={getUrl()}
-                target="_blank"
-                rel="noreferrer"
+            {/* Media Area */}
+            <div
                 className="block aspect-video relative bg-zinc-950"
                 onClick={(e) => e.stopPropagation()}
             >
-                <img
-                    src={getPreviewSrc()}
-                    alt={image.original_name}
-                    className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                    loading="lazy"
-                    draggable={false}
-                />
+                {isVideo ? (
+                    <VideoPlayer
+                        src={getUrl()}
+                        poster={getPreviewSrc()}
+                        className="w-full h-full"
+                    />
+                ) : (
+                    <a href={getUrl()} target="_blank" rel="noreferrer" className="block w-full h-full">
+                        <img
+                            src={getPreviewSrc()}
+                            alt={image.original_name}
+                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                            loading="lazy"
+                            draggable={false}
+                        />
+                    </a>
+                )}
 
                 {/* Format Badge */}
                 <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 flex items-center gap-2">
@@ -177,46 +190,60 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 </div>
 
                 {/* Controls Overlay */}
-                <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 flex flex-col items-center justify-center gap-4 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-
-                    {/* Format Toggles */}
-                    <div className="flex bg-black/50 rounded-lg p-1 border border-zinc-800">
-                        {(['avif', 'webp', 'original'] as const).map((f) => (
-                            <button
-                                key={f}
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(f); }}
-                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors uppercase ${format === f ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-                            >
-                                {f === 'original' ? 'orig' : f}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Size Toggles - Hide for original if you want, but user might want to resize original? No, original is original sized. */}
-                    {format !== 'original' && (
-                        <div className="flex bg-black/50 rounded-lg p-1 border border-zinc-800">
-                            {(['lg', 'md', 'sm', 'thumb'] as const).map((s) => (
-                                <button
-                                    key={s}
-                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSize(s); }}
-                                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors uppercase ${size === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                                >
-                                    {s}
-                                </button>
-                            ))}
+                <div className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300 ${isHovered ? 'translate-y-0' : ''}`}> {/* Keep visible if hovered */}
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-medium text-white truncate max-w-[180px]" title={image.original_name}>
+                                {image.original_name}
+                            </span>
+                            <span className="text-xs text-zinc-400 font-mono">
+                                {image.width}x{image.height} • {getSizeDisplay()}
+                            </span>
                         </div>
-                    )}
+
+                        {/* Format Selector */}
+                        <div className="flex bg-black/40 rounded-lg p-1 border border-white/10 backdrop-blur-md">
+                            {isVideo ? (
+                                <>
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
+                                        className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${format === 'original' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-zinc-400 hover:text-white'}`}
+                                    >
+                                        ORIG
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
+                                        className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${format === 'compressed' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-zinc-400 hover:text-white'}`}
+                                    >
+                                        COMP
+                                    </button>
+                                </>
+                            ) : (
+                                ['original', 'webp', 'avif'].map((fmt) => (
+                                    <button
+                                        key={fmt}
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
+                                        className={`px-2 py-1 rounded text-[10px] font-medium uppercase transition-colors ${format === fmt ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-zinc-400 hover:text-white'}`}
+                                        disabled={fmt === 'avif' && !image.avif}
+                                        title={fmt === 'avif' && !image.avif ? 'AVIF not available' : ''}
+                                    >
+                                        {fmt === 'original' ? 'ORIG' : fmt}
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
 
                     {/* Copy Button */}
                     <button
                         onClick={handleCopy}
-                        className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-semibold text-xs hover:bg-zinc-200 transition-colors"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-semibold text-xs hover:bg-zinc-200 transition-colors"
                     >
                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                         {copied ? 'Copied!' : 'Copy Link'}
                     </button>
                 </div>
-            </a>
+            </div>
 
             {/* Footer */}
             <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between">

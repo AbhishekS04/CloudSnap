@@ -21,11 +21,12 @@ export interface UploadResponse {
     size: number;
     width: number;
     height: number;
+    duration?: number; // Added for video
   };
   optimized: {
-    format: 'webp'; // Hardcoded for now as it's the default
+    format: string; // Changed from 'webp' to string
     urls: OptimizedUrls;
-    sizes: OptimizedSizes;
+    sizes: OptimizedSizes; // For video: thumb=poster, md=compressed, others unused?
   };
 }
 
@@ -33,10 +34,11 @@ export interface ImageRecord {
   id: string;
   original_name: string;
   original_ext: string;
-  original_url: string; // Added missing field
+  original_url: string;
   mime_type: string;
   width: number;
   height: number;
+  duration?: number; // Added for video
   original_size: number;
   optimized_format: string;
   thumb_url: string;
