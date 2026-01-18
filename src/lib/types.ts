@@ -33,6 +33,7 @@ export interface ImageRecord {
   id: string;
   original_name: string;
   original_ext: string;
+  original_url: string; // Added missing field
   mime_type: string;
   width: number;
   height: number;

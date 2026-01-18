@@ -23,8 +23,21 @@ export default function Dashboard() {
 
     // Hook for global drop
     const { uploadFile, isUploading, progress, error: uploadError } = useImageUpload({
-        onUploadComplete: () => {
-            fetchData(); // Refresh both images and folders
+        onUploadComplete: (data) => {
+            // Optimistic update: Prepend the new image immediately
+            // The API returns the ImageRecord directly or within a property?
+            // Checking UploadResponse type: { success: boolean, image: ImageRecord }
+            // If data is just ImageRecord, we use it. If it's UploadResponse, we access .image
+
+            // Cast data safely - we know what our API returns
+            const newImage = (data as any).image || data;
+
+            if (newImage && newImage.id) {
+                setImages(prev => [newImage, ...prev]);
+            } else {
+                fetchData(); // Fallback if structure is unexpected
+            }
+
             setShowUploadModal(false);
         }
     });
