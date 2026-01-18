@@ -4,17 +4,21 @@ import { useEffect, useState, useCallback } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder, UploadResponse } from '@/lib/types';
-import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2 } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud } from 'lucide-react';
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseDropEvent } from '@/lib/upload-utils';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
+import { Sidebar } from '@/components/Sidebar';
+import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
-    const [folders, setFolders] = useState<Folder[]>([]);
+    const [subFolders, setSubFolders] = useState<Folder[]>([]);
+    const [allFolders, setAllFolders] = useState<Folder[]>([]);
     const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
+    const [filterType, setFilterType] = useState<'all' | 'photos' | 'videos'>('all');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
@@ -74,20 +78,28 @@ export default function Dashboard() {
         try {
             const folderId = currentFolder?.id || 'null';
             const imgRes = await fetch(`/api/images?limit=100&folder_id=${folderId}`);
-            const imgs = await imgRes.json();
+            let imgs = await imgRes.json();
 
-            const folderRes = await fetch(`/api/folders?parent_id=${folderId}`);
-            const fldrs = await folderRes.json();
+            if (Array.isArray(imgs)) {
+                if (filterType === 'photos') {
+                    imgs = imgs.filter(img => img.mime_type.startsWith('image/'));
+                } else if (filterType === 'videos') {
+                    imgs = imgs.filter(img => img.mime_type.startsWith('video/'));
+                }
+                setImages(imgs);
+            }
 
-            if (Array.isArray(imgs)) setImages(imgs);
-            if (Array.isArray(fldrs)) setFolders(fldrs);
+            // Fetch all folders for the sidebar tree
+            const allRes = await fetch('/api/folders?all=true');
+            const folders = await allRes.json();
+            if (Array.isArray(folders)) setAllFolders(folders);
         } catch (err) {
             console.error("Failed to fetch data", err);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [currentFolder]);
+    }, [currentFolder, filterType]);
 
     useEffect(() => {
         fetchData();
@@ -185,72 +197,95 @@ export default function Dashboard() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            <header className="sticky top-0 z-50 border-b border-zinc-800 bg-black/50 backdrop-blur-xl supports-[backdrop-filter]:bg-black/20">
-                <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <LayoutGrid className="w-5 h-5 text-white" />
-                        </div>
-                        <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                            CloudSnap
-                        </h1>
-                    </div>
+            <Sidebar
+                className="hidden lg:flex"
+                folders={allFolders}
+                currentFolder={currentFolder}
+                filterType={filterType}
+                onNavigate={(folder) => {
+                    setCurrentFolder(folder);
+                    setFilterType('all');
+                }}
+                onSetFilter={setFilterType}
+                onCreateFolder={() => setShowFolderModal(true)}
+                onUploadClick={() => setShowUploadModal(true)}
+                onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
+            />
 
-                    <div className="flex items-center gap-4">
-                        <div className="hidden md:flex items-center gap-2 text-sm text-zinc-400 mr-4 bg-zinc-900/50 px-3 py-1.5 rounded-full border border-zinc-800">
-                            <button onClick={() => setCurrentFolder(null)} className="hover:text-white flex items-center gap-1">
-                                <Home className="w-3.5 h-3.5" /> Home
+            <div className="lg:pl-72 flex flex-col min-h-screen">
+                <header className="sticky top-0 z-30 border-b border-zinc-800/40 bg-zinc-950/80 backdrop-blur-xl">
+                    <div className="w-full px-6 md:px-8 lg:px-10 h-16 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="lg:hidden w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                                <Cloud className="w-5 h-5 text-white" />
+                            </div>
+
+                            <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-900/40 px-3 py-1.5 rounded-2xl border border-zinc-800/50 h-9">
+                                <button
+                                    onClick={() => { setCurrentFolder(null); setFilterType('all'); }}
+                                    className="hover:text-white flex items-center gap-1.5 transition-colors h-full"
+                                >
+                                    <Home className="w-4 h-4" />
+                                    <span className="font-medium pt-0.5">Library</span>
+                                </button>
+                                {currentFolder && (
+                                    <div className="flex items-center gap-2 h-full">
+                                        <ChevronRight className="w-3.5 h-3.5 text-zinc-700" />
+                                        <span className="text-white font-semibold pt-0.5">{currentFolder.name}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => { setRefreshing(true); fetchData(); }}
+                                className={cn(
+                                    "p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all",
+                                    refreshing && "animate-spin"
+                                )}
+                            >
+                                <RefreshCw className="w-5 h-5" />
                             </button>
-                            {currentFolder && (
-                                <>
-                                    <ChevronRight className="w-3 h-3 text-zinc-600" />
-                                    <span className="text-white font-medium">{currentFolder.name}</span>
-                                </>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-3 pl-4 border-l border-zinc-800">
-                            <span className="text-sm font-medium text-zinc-300 hidden sm:block">
-                                {user?.fullName || user?.username || 'User'}
-                            </span>
-                            <UserButton afterSignOutUrl="/" />
+                            <div className="lg:hidden h-8 w-px bg-zinc-800" />
+                            <div className="lg:hidden">
+                                <UserButton afterSignOutUrl="/" />
+                            </div>
                         </div>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            <main className="max-w-screen-2xl mx-auto p-4 md:p-6 lg:p-8 pb-32">
-                <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-2xl font-bold text-white">
-                            {currentFolder ? currentFolder.name : 'Assets'}
+                <main className="flex-1 p-6 md:p-8 lg:p-10 w-full">
+                    <div className="mb-10 flex flex-col gap-1">
+                        <h2 className="text-4xl font-extrabold tracking-tight text-white leading-tight">
+                            {filterType === 'photos' ? 'Photos' : filterType === 'videos' ? 'Videos' : currentFolder ? currentFolder.name : 'Assets'}
                         </h2>
-                        <button
-                            onClick={() => { setRefreshing(true); fetchData(); }}
-                            className={`p-2 rounded-full hover:bg-zinc-800 transition-colors ${refreshing ? 'animate-spin' : ''}`}
-                        >
-                            <RefreshCw className="w-5 h-5 text-zinc-400" />
-                        </button>
+                        <p className="text-zinc-500 font-medium">
+                            {images.length} {images.length === 1 ? 'asset' : 'assets'} in this view
+                        </p>
                     </div>
-                </div>
 
-                {loading ? (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[...Array(4)].map((_, i) => <div key={i} className="aspect-video bg-zinc-900 rounded-2xl animate-pulse" />)}
-                    </div>
-                ) : (
-                    <ImageGallery
-                        images={images}
-                        folders={folders}
-                        onDelete={(id) => {
-                            const img = images.find(i => i.id === id);
-                            confirmDelete('image', id, img?.original_name || 'Asset');
-                        }}
-                        onNavigate={setCurrentFolder}
-                        onMoveImage={handleMoveImage}
-                        onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
-                    />
-                )}
-            </main>
+                    {loading ? (
+                        <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6">
+                            {[...Array(8)].map((_, i) => (
+                                <div key={i} className="mb-6 break-inside-avoid aspect-[4/5] bg-zinc-900/50 rounded-3xl animate-pulse border border-zinc-800/50" />
+                            ))}
+                        </div>
+                    ) : (
+                        <ImageGallery
+                            images={images}
+                            folders={[]} // User explicitly said no folders in the gallery section
+                            onDelete={(id) => {
+                                const img = images.find(i => i.id === id);
+                                confirmDelete('image', id, img?.original_name || 'Asset');
+                            }}
+                            onNavigate={setCurrentFolder}
+                            onMoveImage={handleMoveImage}
+                            onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
+                        />
+                    )}
+                </main>
+            </div>
 
             {/* Modals & UI Overlays */}
             <AnimatePresence>
@@ -265,7 +300,7 @@ export default function Dashboard() {
                             onClick={(e) => e.stopPropagation()}
                             className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl p-8"
                         >
-                            <h3 className="text-xl font-bold mb-6 text-center">Create New Folder</h3>
+                            <h3 className="text-xl font-bold mb-6 text-center text-white">Create New Folder</h3>
                             <input
                                 autoFocus type="text" value={newFolderName}
                                 onChange={(e) => setNewFolderName(e.target.value)}
@@ -305,7 +340,7 @@ export default function Dashboard() {
                         >
                             <button onClick={() => setShowUploadModal(false)} className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors z-10"><X className="w-6 h-6" /></button>
                             <div className="p-8">
-                                <h3 className="text-xl font-bold mb-6 text-center">Upload to {currentFolder ? currentFolder.name : 'Root'}</h3>
+                                <h3 className="text-xl font-bold mb-6 text-center text-white">Upload to {currentFolder ? currentFolder.name : 'Root'}</h3>
                                 <UploadZone onUploadComplete={() => { fetchData(); setShowUploadModal(false); }} />
                             </div>
                         </motion.div>
@@ -343,8 +378,8 @@ export default function Dashboard() {
                 )}
             </AnimatePresence>
 
-            {/* FABs */}
-            <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-40 items-end">
+            {/* Mobile FABs */}
+            <div className="lg:hidden fixed bottom-8 right-8 flex flex-col gap-3 z-40 items-end">
                 <motion.button
                     whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                     onClick={() => setShowFolderModal(true)}

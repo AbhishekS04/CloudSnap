@@ -57,7 +57,7 @@ export function VideoPlayer({ src, poster, className = '', autoPlay = false }: V
                 ref={videoRef}
                 src={src}
                 poster={poster}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={() => setIsPlaying(false)}
                 playsInline

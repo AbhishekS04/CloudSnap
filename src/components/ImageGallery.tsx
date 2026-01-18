@@ -30,21 +30,10 @@ export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMov
     return (
         <motion.div
             layout
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
         >
             <AnimatePresence mode='popLayout'>
-                {/* Folders First */}
-                {folders.map(folder => (
-                    <FolderCard
-                        key={`folder-${folder.id}`}
-                        folder={folder}
-                        onNavigate={(f) => onNavigate?.(f)}
-                        onDropImages={(fid, ids) => onMoveImage?.(fid, ids)}
-                        onDelete={onDeleteFolder}
-                    />
-                ))}
-
-                {/* Then Images */}
+                {/* Images in Masonry - Folders now stay in the Sidebar as per user feedback */}
                 {images.map((image) => (
                     <ImageCard key={image.id} image={image} onDelete={onDelete} />
                 ))}
@@ -165,131 +154,120 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
             className={cn(
-                "group relative bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-zinc-700 hover:shadow-indigo-500/10 transition-colors",
-                isHovered && "border-zinc-700 shadow-indigo-500/10"
+                "group relative bg-zinc-900 border border-zinc-800/50 rounded-3xl overflow-hidden transition-all duration-500 hover:ring-2 hover:ring-white/10 hover:shadow-2xl",
+                isHovered && "scale-[1.01]"
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onClick={() => setIsHovered(!isHovered)} // Tap to toggle on mobile
+            onClick={() => setIsHovered(!isHovered)}
             draggable
             onDragStartCapture={handleDragStart}
         >
             {/* Media Area */}
-            <div
-                className="block aspect-video relative bg-zinc-950"
-            >
+            <div className="relative w-full aspect-[4/5] overflow-hidden">
                 {isVideo ? (
                     <VideoPlayer
                         src={getUrl()}
                         poster={getPreviewSrc()}
-                        className="w-full h-full"
+                        className="w-full h-full object-cover"
                     />
                 ) : (
                     <a href={getUrl()} target="_blank" rel="noreferrer" className="block w-full h-full">
                         <img
                             src={getPreviewSrc()}
                             alt={image.original_name}
-                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
                             loading="lazy"
                             draggable={false}
                         />
                     </a>
                 )}
 
-                {/* Format Badge */}
-                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 flex items-center gap-2 pointer-events-none">
-                    <span className="text-[10px] font-mono text-zinc-300 uppercase">{image.original_ext}</span>
-                    <div className="w-px h-3 bg-white/20" />
-                    <span className={`text-[10px] font-mono font-bold ${format === 'original' ? 'text-indigo-400' : 'text-green-400'}`}>
-                        {format.toUpperCase()}
-                    </span>
-                </div>
-
-                {/* Controls Overlay */}
-                <div
-                    className={cn(
-                        "absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-transform duration-300",
-                        isHovered ? "translate-y-0" : "translate-y-full"
-                    )}
-                    onClick={(e) => e.stopPropagation()} // Prevent closing when interacting with overlay
-                >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex flex-col">
-                            <span className="text-sm font-medium text-white" title={image.original_name}>
-                                {truncateFileName(image.original_name, 25)}
-                            </span>
-                            <span className="text-xs text-zinc-400 font-mono">
-                                {image.width}x{image.height} • {getSizeDisplay()}
-                            </span>
-                        </div>
-
-                        {/* Format Selector */}
-                        <div className="flex bg-black/40 rounded-lg p-1 border border-white/10 backdrop-blur-md">
-                            {isVideo ? (
-                                <>
-                                    <button
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
-                                        className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${format === 'original' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-zinc-400 hover:text-white'}`}
-                                    >
-                                        ORIG
-                                    </button>
-                                    <button
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
-                                        className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${format === 'compressed' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-zinc-400 hover:text-white'}`}
-                                    >
-                                        COMP
-                                    </button>
-                                </>
-                            ) : (
-                                ['original', 'webp', 'avif'].map((fmt) => (
-                                    <button
-                                        key={fmt}
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
-                                        className={`px-2 py-1 rounded text-[10px] font-medium uppercase transition-colors ${format === fmt ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'text-zinc-400 hover:text-white'}`}
-                                        disabled={fmt === 'avif' && !image.avif}
-                                        title={fmt === 'avif' && !image.avif ? 'AVIF not available' : ''}
-                                    >
-                                        {fmt === 'original' ? 'ORIG' : fmt}
-                                    </button>
-                                ))
-                            )}
-                        </div>
+                {/* Glassy Overlay for Meta Data - Always visible but subtle */}
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+                    <div className="px-3 py-1.5 bg-zinc-950/60 backdrop-blur-md rounded-full border border-white/5 flex items-center gap-2 pointer-events-none">
+                        <span className="text-[10px] font-bold text-zinc-400 tracking-wider uppercase">{image.original_ext}</span>
+                        <div className="w-px h-3 bg-white/10" />
+                        <span className="text-[10px] font-bold text-zinc-200 tracking-widest uppercase">
+                            {format === 'original' ? 'RAW' : format}
+                        </span>
                     </div>
 
-                    {/* Copy Button */}
                     <button
-                        onClick={handleCopy}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-semibold text-xs hover:bg-zinc-200 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
+                        className="p-2 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-red-400 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100"
                     >
-                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copied ? 'Copied!' : 'Copy Link'}
+                        <Trash2 className="w-4 h-4" />
                     </button>
                 </div>
-            </div>
 
-            {/* Footer */}
-            <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between">
-                <div className="flex-1 min-w-0 mr-4">
-                    <p className="text-sm font-medium text-white truncate" title={image.original_name}>
-                        {truncateFileName(image.original_name, 20)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <p className="text-xs text-zinc-500 font-mono mt-0.5">
-                            {getSizeDisplay()}
-                        </p>
+                {/* Expand Area on Hover - For videos we make it non-blocking */}
+                <div
+                    className={cn(
+                        "absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-6 pointer-events-none",
+                        isHovered && "opacity-100"
+                    )}
+                >
+                    <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500 pointer-events-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-lg font-bold text-white leading-tight truncate max-w-[150px]" title={image.original_name}>
+                                    {truncateFileName(image.original_name, 20)}
+                                </span>
+                                <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-widest">
+                                    {image.width}x{image.height} • {getSizeDisplay()}
+                                </span>
+                            </div>
+
+                            {/* Format Selector Pills */}
+                            <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl">
+                                {isVideo ? (
+                                    <>
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
+                                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-wider transition-all ${format === 'original' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                        >
+                                            RAW
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
+                                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-wider transition-all ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                        >
+                                            COMP
+                                        </button>
+                                    </>
+                                ) : (
+                                    ['original', 'webp', 'avif'].map((fmt) => (
+                                        <button
+                                            key={fmt}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
+                                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-wider uppercase transition-all ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-300 hover:text-white'}`}
+                                            disabled={fmt === 'avif' && !image.avif}
+                                        >
+                                            {fmt === 'original' ? 'RAW' : fmt}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Animated Action Button */}
+                        <button
+                            onClick={handleCopy}
+                            className="group/btn relative w-full overflow-hidden rounded-2xl bg-white p-3 font-bold text-black transition-all hover:bg-zinc-100"
+                        >
+                            <span className="relative z-10 flex items-center justify-center gap-2 text-sm">
+                                {copied ? <Check className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                                {copied ? 'Project Link Copied' : 'Share Asset'}
+                            </span>
+                        </button>
                     </div>
                 </div>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
-                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
-                >
-                    <Trash2 className="w-4 h-4" />
-                </button>
             </div>
         </motion.div>
     );

@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
 
         const { searchParams } = new URL(req.url);
         const parent_id = searchParams.get('parent_id');
+        const showAll = searchParams.get('all') === 'true';
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -48,10 +49,12 @@ export async function GET(req: NextRequest) {
             .select('*')
             .order('name', { ascending: true });
 
-        if (parent_id && parent_id !== 'null') {
-            query = query.eq('parent_id', parent_id);
-        } else {
-            query = query.is('parent_id', null);
+        if (!showAll) {
+            if (parent_id && parent_id !== 'null') {
+                query = query.eq('parent_id', parent_id);
+            } else {
+                query = query.is('parent_id', null);
+            }
         }
 
         const { data, error } = await query;
