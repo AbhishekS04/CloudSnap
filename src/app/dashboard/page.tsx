@@ -60,6 +60,7 @@ export default function Dashboard() {
         const name = prompt("Enter folder name:");
         if (!name) return;
 
+        setRefreshing(true);
         try {
             const res = await fetch('/api/folders', {
                 method: 'POST',
@@ -69,14 +70,17 @@ export default function Dashboard() {
                 fetchData();
             } else {
                 alert("Failed to create folder");
+                setRefreshing(false);
             }
         } catch (err) {
             console.error(err);
+            setRefreshing(false);
         }
     };
 
     // Move Image
     const handleMoveImage = async (targetFolderId: string, imageIds: string[]) => {
+        setRefreshing(true);
         try {
             const res = await fetch('/api/images/move', {
                 method: 'POST',
@@ -84,9 +88,37 @@ export default function Dashboard() {
             });
             if (res.ok) {
                 fetchData();
+            } else {
+                setRefreshing(false);
             }
         } catch (err) {
             console.error(err);
+            setRefreshing(false);
+        }
+    };
+
+    // Delete Folder
+    const handleDeleteFolder = async (folder: Folder) => {
+        // Prevent accidental deletion checks
+        if (!confirm(`Delete folder "${folder.name}"?`)) return;
+
+        setRefreshing(true);
+        try {
+            const res = await fetch(`/api/folders?id=${folder.id}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                fetchData();
+            } else {
+                const json = await res.json();
+                alert(json.error || "Failed to delete folder");
+                setRefreshing(false);
+            }
+        } catch (err) {
+            console.error("Failed to delete folder", err);
+            alert("Error deleting folder");
+            setRefreshing(false);
         }
     };
 

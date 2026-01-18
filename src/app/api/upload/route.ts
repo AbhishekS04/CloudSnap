@@ -72,12 +72,31 @@ export async function POST(req: NextRequest) {
             .getPublicUrl(originalPath);
 
 
-        // 3. Process & Upload WebP & AVIF Versions
+        // 3. Process & Upload Versions
+
+        const getFormatFromType = (mime: string): 'jpeg' | 'png' | null => {
+            if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpeg';
+            if (mime === 'image/png') return 'png';
+            return null;
+        };
+
+        const originalFormat = getFormatFromType(file.type);
 
         // Helper to process and upload a single variant
-        const processAndUpload = async (sizeName: string, targetWidth: number, format: 'webp' | 'avif') => {
+        const processAndUpload = async (sizeName: string, targetWidth: number, format: 'webp' | 'avif' | 'jpeg' | 'png') => {
             const processed: ProcessedImage = await processImage(buffer, targetWidth, format);
-            const fileName = `${format}/${sizeName}/${id}.${format}`;
+
+            // Use correct extension for filePath
+            let ext: string = format;
+            if (format === 'jpeg') ext = 'jpg';
+
+            // If it's the "original" format optimization, we want it to match the original_ext logic if possible, 
+            // but `image-processing` uses 'jpeg'.
+            // For URL construction consistency: 
+            // If original_ext is 'jpg', we save as 'jpg'. 
+            // If original_ext is 'png', we save as 'png'.
+
+            const fileName = `${ext}/${sizeName}/${id}.${ext}`;
 
             const { error: uploadError } = await supabaseAdmin.storage
                 .from('assets')
@@ -89,8 +108,6 @@ export async function POST(req: NextRequest) {
 
             if (uploadError) {
                 console.error(`Upload Error ${sizeName} (${format}):`, uploadError);
-                // We log but don't fail the whole request if optional AVIF fails? 
-                // For consistent API, let's throw.
                 throw new Error(`Failed to upload ${sizeName} ${format} version`);
             }
 
@@ -106,7 +123,7 @@ export async function POST(req: NextRequest) {
             };
         };
 
-        // Generate tasks for both WebP and AVIF
+        // Generate tasks
         const allTasks = [];
 
         // WebP Tasks
@@ -116,6 +133,13 @@ export async function POST(req: NextRequest) {
         // AVIF Tasks
         for (const [sizeName, targetWidth] of Object.entries(SIZES)) {
             allTasks.push(processAndUpload(sizeName, targetWidth, 'avif'));
+        }
+        // Original Format Tasks (Optimized)
+        if (originalFormat) {
+            console.log(`Generating optimized duplicates for original format: ${originalFormat}`);
+            for (const [sizeName, targetWidth] of Object.entries(SIZES)) {
+                allTasks.push(processAndUpload(sizeName, targetWidth, originalFormat));
+            }
         }
 
         const results = await Promise.all(allTasks);

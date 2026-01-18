@@ -1,17 +1,32 @@
 -- Enable the pg_net extension to allow Supabase to make HTTP requests (optional, but often useful)
 -- create extension if not exists "pg_net";
 
--- 1. Create a storage bucket for assets
+-- 1.-- Create a specific bucket for assets if it doesn't exist
 insert into storage.buckets (id, name, public)
 values ('assets', 'assets', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = true;
 
--- 2. Allow public access to the assets bucket
+-- Storage Policies
 -- Note: You might need to drop the policy first if it exists and you're re-running this
 drop policy if exists "Public Access" on storage.objects;
 create policy "Public Access"
-on storage.objects for select
-using ( bucket_id = 'assets' );
+  on storage.objects for select
+  using ( bucket_id = 'assets' );
+
+create policy "Authenticated Insert"
+  on storage.objects for insert
+  to authenticated
+  with check ( bucket_id = 'assets' );
+
+create policy "Authenticated Update"
+  on storage.objects for update
+  to authenticated
+  using ( bucket_id = 'assets' );
+
+create policy "Authenticated Delete"
+  on storage.objects for delete
+  to authenticated
+  using ( bucket_id = 'assets' );
 
 -- 3. Create images metadata table
 create table if not exists public.images (

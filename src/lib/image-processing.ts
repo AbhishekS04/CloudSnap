@@ -13,6 +13,15 @@ export const QUALITY_SETTINGS = {
         effort: 6,
         lossless: false,
     },
+    jpeg: {
+        quality: 80,
+        mozjpeg: true, // Use Mozilla's JPEG encoder for better compression
+    },
+    png: {
+        quality: 80,
+        compressionLevel: 9,
+        palette: true, // Use palette-based compression (like pngquant)
+    }
 };
 
 export const SIZES = {
@@ -31,19 +40,14 @@ export interface ProcessedImage {
 
 /**
  * processImage
- * Optimizes and resizes an image buffer to WebP format.
+ * Optimizes and resizes an image buffer to WebP/AVIF/JPEG/PNG format.
  * - Always maintains aspect ratio.
- * - Never upscales (if original is smaller than target, keeps original dimensions... 
- *   Wait, actually for a standardized API, usually we want the max dimension to be *at most* X.
- *   The requirement says: "Do not upscale smaller images."
- *   So if image is 100px, and we request 200px, it should stay 100px? Or fail?
- *   "Maintain aspect ratio always. Do not upscale smaller images." -> implies stay 100px.
- *   But we still need to return a "thumb" URL. So we will just process it at its native size if smaller.)
+ * - Never upscales
  */
 export async function processImage(
     originalBuffer: Buffer,
     targetWidth: number,
-    format: 'webp' | 'avif' = 'webp'
+    format: 'webp' | 'avif' | 'jpeg' | 'png' = 'webp'
 ): Promise<ProcessedImage> {
     const metadata = await sharp(originalBuffer).metadata();
     const inputWidth = metadata.width || 0;
@@ -55,11 +59,13 @@ export async function processImage(
         .resize({ width: finalWidth, withoutEnlargement: true });
 
     if (format === 'avif') {
-        // AVIF: quality 50-65, effort 6-7, strip metadata
         pipeline = pipeline.avif(QUALITY_SETTINGS.avif);
+    } else if (format === 'jpeg') {
+        pipeline = pipeline.jpeg(QUALITY_SETTINGS.jpeg);
+    } else if (format === 'png') {
+        pipeline = pipeline.png(QUALITY_SETTINGS.png);
     } else {
-        // WebP: crystal clear settings
-        // Note: .strip() removed due to runtime error
+        // WebP
         pipeline = pipeline.webp(QUALITY_SETTINGS.webp);
     }
 

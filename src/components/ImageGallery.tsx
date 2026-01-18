@@ -1,8 +1,7 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { formatBytes } from '@/lib/utils';
-import { Copy, Trash2, ExternalLink, Image as ImageIcon, Check, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Copy, Trash2, Check, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
@@ -13,27 +12,15 @@ interface ImageGalleryProps {
     onDelete: (id: string) => void;
     onNavigate?: (folder: Folder) => void;
     onMoveImage?: (folderId: string, imageIds: string[]) => void;
+    onDeleteFolder?: (folder: Folder) => void;
 }
 
-export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMoveImage }: ImageGalleryProps) {
+export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMoveImage, onDeleteFolder }: ImageGalleryProps) {
     if (images.length === 0 && folders.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-32 text-zinc-500">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5 }}
-                >
-                    <ImageIcon className="w-16 h-16 mb-4 opacity-20" />
-                </motion.div>
-                <motion.p
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="text-lg font-light"
-                >
-                    Drop images anywhere to upload
-                </motion.p>
+            <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
+                <p className="text-xl font-semibold">No assets found</p>
+                <p className="text-sm mt-2">Upload some images to get started</p>
             </div>
         );
     }
@@ -51,6 +38,7 @@ export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMov
                         folder={folder}
                         onNavigate={(f) => onNavigate?.(f)}
                         onDropImages={(fid, ids) => onMoveImage?.(fid, ids)}
+                        onDelete={onDeleteFolder}
                     />
                 ))}
 
@@ -64,25 +52,32 @@ export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMov
 }
 
 function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, onDelete: (id: string) => void }) {
-    const [format, setFormat] = useState<'avif' | 'webp'>('avif');
+    const [format, setFormat] = useState<'avif' | 'webp' | 'original'>('avif');
     const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
     const [isHovered, setIsHovered] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const getUrl = () => {
-        let url = image[`${size}_url` as keyof ImageRecord] as string;
+        // Fallback
+        if (!image.thumb_url) return image.md_url || image.sm_url;
 
-        // Safety check
-        if (!url) url = image.md_url || image.sm_url;
+        // Robust URL Reconstruction
+        // Tries to extract the Supabase Storage base path
+        const parts = image.thumb_url.split('/assets/');
+        if (parts.length < 2) return image.md_url || image.sm_url;
 
-        if (format === 'avif') {
-            // Construct AVIF URL based on convention
-            const parts = image.thumb_url.split('/webp/');
-            if (parts.length > 0) {
-                return `${parts[0]}/avif/${size}/${image.id}.avif`;
-            }
+        const limitPrefix = parts[0] + '/assets';
+
+        if (format === 'original') {
+            // Normalize extension to match backend storage convention (lowercase, jpeg->jpg)
+            let ext = (image.original_ext || 'jpg').toLowerCase();
+            if (ext === 'jpeg') ext = 'jpg';
+
+            // Optimized originals are stored in their respective folder (jpg/png)
+            return `${limitPrefix}/${ext}/${size}/${image.id}.${ext}`;
         }
-        return url;
+
+        return `${limitPrefix}/${format}/${size}/${image.id}.${format}`;
     };
 
     const handleCopy = async (e: React.MouseEvent) => {
@@ -101,7 +96,6 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     const handleDragStart = (e: React.DragEvent) => {
         e.dataTransfer.setData('imageId', image.id);
         e.dataTransfer.effectAllowed = 'move';
-        // Optional: Set custom drag image if needed
     };
 
     return (
@@ -119,105 +113,84 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         >
             {/* Image Area - Click to open raw */}
             <a
-                href={getUrl()}
+                href={image.md_url}
                 target="_blank"
-                rel="noopener noreferrer"
-                className="block aspect-video relative bg-black overflow-hidden cursor-zoom-in"
-                onClick={(e) => isHovered && e.preventDefault()}
+                rel="noreferrer"
+                className="block aspect-video relative bg-zinc-950"
+                onClick={(e) => e.stopPropagation()}
             >
-                <div className="absolute inset-0 bg-zinc-900" /> {/* Background for letterboxing */}
-
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                     src={image.sm_url}
                     alt={image.original_name}
-                    className="absolute inset-0 w-full h-full object-contain transition-transform duration-700 ease-in-out group-hover:scale-110 opacity-100"
+                    className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                    loading="lazy"
+                    draggable={false}
                 />
 
-                {/* Delete Button */}
-                <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(image.id); }}
-                    className="absolute top-3 right-3 p-2 bg-black/40 hover:bg-red-500 text-white/70 hover:text-white rounded-full opacity-0 group-hover:opacity-100 backdrop-blur-md transition-all border border-white/10"
-                    title="Delete Image"
-                >
-                    <Trash2 className="w-4 h-4" />
-                </motion.button>
-            </a>
+                {/* Format Badge */}
+                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10">
+                    <span className="text-[10px] font-mono text-zinc-300 uppercase">{image.original_ext}</span>
+                </div>
 
-            {/* Hover Control Bar */}
-            <motion.div
-                initial={false}
-                animate={{ y: isHovered ? 0 : '100%' }}
-                transition={{ type: 'spring', damping: 20, stiffness: 200 }}
-                className="absolute bottom-0 left-0 right-0 bg-zinc-950/90 backdrop-blur-xl border-t border-zinc-800 p-3.5 flex items-center justify-between gap-2 z-10"
-            >
-                {/* Controls Group */}
-                <div className="flex items-center gap-2">
-                    {/* Size Selector */}
-                    <div className="relative">
-                        <select
-                            value={size}
-                            onChange={(e) => setSize(e.target.value as any)}
-                            className="appearance-none bg-zinc-900 text-[10px] font-bold text-zinc-300 border border-zinc-700 rounded-lg pl-2 pr-6 py-1.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer hover:bg-zinc-800 transition-colors uppercase tracking-wider"
-                        >
-                            <option value="lg">LG (2K)</option>
-                            <option value="md">MD (1.2K)</option>
-                            <option value="sm">SM (600)</option>
-                            <option value="thumb">TH (200)</option>
-                        </select>
-                        <ChevronDown className="w-3 h-3 text-zinc-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
+                {/* Controls Overlay */}
+                <div className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 flex flex-col items-center justify-center gap-4 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
 
                     {/* Format Toggles */}
-                    <div className="flex bg-zinc-900 rounded-lg border border-zinc-700 p-0.5">
-                        {(['avif', 'webp'] as const).map((fmt) => (
+                    <div className="flex bg-black/50 rounded-lg p-1 border border-zinc-800">
+                        {(['avif', 'webp', 'original'] as const).map((f) => (
                             <button
-                                key={fmt}
-                                onClick={() => setFormat(fmt)}
-                                className={`text-[9px] px-2 py-1 rounded-[4px] font-bold uppercase transition-all ${format === fmt
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-                                    }`}
+                                key={f}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(f); }}
+                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors uppercase ${format === f ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'}`}
                             >
-                                {fmt}
+                                {f === 'original' ? 'orig' : f}
                             </button>
                         ))}
                     </div>
-                </div>
 
-                {/* Copy Button */}
-                <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleCopy}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-lg ${copied
-                        ? 'bg-emerald-500 text-white shadow-emerald-500/20'
-                        : 'bg-white text-zinc-950 hover:bg-zinc-200'
-                        }`}
+                    {/* Size Toggles */}
+                    <div className="flex bg-black/50 rounded-lg p-1 border border-zinc-800">
+                        {(['lg', 'md', 'sm', 'thumb'] as const).map((s) => (
+                            <button
+                                key={s}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSize(s); }}
+                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors uppercase ${size === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                            >
+                                {s}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Copy Button */}
+                    <button
+                        onClick={handleCopy}
+                        className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-semibold text-xs hover:bg-zinc-200 transition-colors"
+                    >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        {copied ? 'Copied!' : 'Copy Link'}
+                    </button>
+                </div>
+            </a>
+
+            {/* Footer */}
+            <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between">
+                <div className="flex-1 min-w-0 mr-4">
+                    <p className="text-sm font-medium text-white truncate" title={image.original_name}>
+                        {image.original_name}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-xs text-zinc-500 font-mono mt-0.5">
+                            {(image.original_size / 1024).toFixed(2)} KB
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => onDelete(image.id)}
+                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                 >
-                    {copied ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                    ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                    )}
-                    {copied ? 'COPIED' : 'COPY'}
-                </motion.button>
-            </motion.div>
-
-            {/* Minimal Info (Visible when NOT hovered) */}
-            <motion.div
-                animate={{ opacity: isHovered ? 0 : 1, y: isHovered ? 10 : 0 }}
-                className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none"
-            >
-                <h4 className="text-white text-sm font-medium truncate drop-shadow-sm">{image.original_name}</h4>
-                <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-zinc-300 font-mono bg-white/10 px-1.5 py-0.5 rounded backdrop-blur-sm">
-                        {formatBytes(image.original_size)}
-                    </span>
-                </div>
-            </motion.div>
+                    <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
         </motion.div>
     );
 }

@@ -10,9 +10,10 @@ interface FolderCardProps {
     folder: Folder;
     onNavigate: (folder: Folder) => void;
     onDropImages: (folderId: string, imageIds: string[]) => void;
+    onDelete?: (folder: Folder) => void;
 }
 
-export function FolderCard({ folder, onNavigate, onDropImages }: FolderCardProps) {
+export function FolderCard({ folder, onNavigate, onDropImages, onDelete }: FolderCardProps) {
     const [isDragOver, setIsDragOver] = useState(false);
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -61,10 +62,37 @@ export function FolderCard({ folder, onNavigate, onDropImages }: FolderCardProps
                 {isDragOver ? <FolderOpen className="w-8 h-8" /> : <FolderIcon className="w-8 h-8" />}
             </div>
 
-            <div className="text-center w-full">
+            <div className="text-center w-full relative z-10">
                 <h3 className="text-sm font-medium text-zinc-200 truncate px-2">{folder.name}</h3>
                 <p className="text-[10px] text-zinc-500 mt-1">Folder</p>
             </div>
+
+            {onDelete && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(folder);
+                    }}
+                    className="absolute top-2 right-2 p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-20"
+                    title="Delete Folder"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c0 1 2 1 2 2v2" />
+                    </svg>
+                </button>
+            )}
         </motion.div>
     );
 }
