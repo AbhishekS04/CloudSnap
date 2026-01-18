@@ -2,157 +2,198 @@
 
 import { ImageRecord } from '@/lib/types';
 import { formatBytes } from '@/lib/utils';
-import { Copy, Trash2, ExternalLink, Image as ImageIcon, Zap } from 'lucide-react';
+import { Copy, Trash2, ExternalLink, Image as ImageIcon, Check, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ImageGalleryProps {
-    images: (ImageRecord & { avif?: any })[]; // Extend type loosely for now
+    images: (ImageRecord & { avif?: any })[];
     onDelete: (id: string) => void;
 }
 
 export function ImageGallery({ images, onDelete }: ImageGalleryProps) {
-    const [copying, setCopying] = useState<string | null>(null);
-
-    const copyToClipboard = async (text: string, id: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopying(id);
-            setTimeout(() => setCopying(null), 2000);
-        } catch (err) {
-            console.error('Failed to copy', err);
-        }
-    };
-
-    const calculateReduction = (original: number, optimized: number) => {
-        const percent = ((original - optimized) / original) * 100;
-        return Math.round(percent);
-    };
-
-    // Helper to generate AVIF url if not in DB but follows pattern
-    const getAvifUrl = (image: ImageRecord, size: string) => {
-        // Pattern: https://.../assets/avif/size/id.avif
-        // We can deduce base from webp url
-        // webp url: .../assets/webp/thumb/UUID.webp
-        if (!image.thumb_url) return '';
-        const baseUrl = image.thumb_url.split('/webp/')[0];
-        return `${baseUrl}/avif/${size}/${image.id}.avif`;
-    };
-
     if (images.length === 0) {
         return (
-            <div className="text-center py-20 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <h3 className="text-sm font-medium text-gray-900">No images yet</h3>
-                <p className="text-xs text-gray-500 mt-1">Upload your first image to get started</p>
+            <div className="flex flex-col items-center justify-center py-32 text-zinc-500">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5 }}
+                >
+                    <ImageIcon className="w-16 h-16 mb-4 opacity-20" />
+                </motion.div>
+                <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-lg font-light"
+                >
+                    Drop images anywhere to upload
+                </motion.p>
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {images.map((image) => (
-                <div key={image.id} className="bg-white border text-black border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group">
-                    {/* Preview Area */}
-                    <div className="aspect-video relative bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src={image.md_url}
-                            alt={image.original_name}
-                            className="w-full h-full object-contain"
-                            loading="lazy"
-                        />
+        <motion.div
+            layout
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-4"
+        >
+            <AnimatePresence mode='popLayout'>
+                {images.map((image) => (
+                    <ImageCard key={image.id} image={image} onDelete={onDelete} />
+                ))}
+            </AnimatePresence>
+        </motion.div>
+    );
+}
 
-                        {/* Overlay Actions */}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <a
-                                href={image.md_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-2 bg-white rounded-full hover:bg-gray-100 transition-colors"
-                                title="Open MD"
-                            >
-                                <ExternalLink className="w-4 h-4 text-gray-900" />
-                            </a>
-                            <button
-                                onClick={() => onDelete(image.id)}
-                                className="p-2 bg-white rounded-full hover:bg-red-50 text-red-600 transition-colors"
-                                title="Delete"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        </div>
+function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, onDelete: (id: string) => void }) {
+    const [format, setFormat] = useState<'avif' | 'webp'>('avif');
+    const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
+    const [isHovered, setIsHovered] = useState(false);
+    const [copied, setCopied] = useState(false);
 
-                        {/* Size Badge */}
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-medium backdrop-blur-sm">
-                            -{calculateReduction(image.original_size, image.md_size)}% (MD)
-                        </div>
+    const getUrl = () => {
+        let url = image[`${size}_url` as keyof ImageRecord] as string;
+
+        // Safety check
+        if (!url && size === 'lg') url = image.md_url; // Fallback
+
+        if (format === 'avif') {
+            // Construct AVIF URL based on convention
+            const parts = image.thumb_url.split('/webp/');
+            if (parts.length > 0) {
+                return `${parts[0]}/avif/${size}/${image.id}.avif`;
+            }
+        }
+        return url;
+    };
+
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        try {
+            await navigator.clipboard.writeText(getUrl());
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Copy failed', err);
+        }
+    };
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            className="group relative bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-zinc-700 hover:shadow-indigo-500/10 transition-colors"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            {/* Image Area */}
+            <a
+                href={getUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block aspect-[4/3] relative bg-zinc-950 overflow-hidden cursor-zoom-in"
+                onClick={(e) => isHovered && e.preventDefault()} // Prevent click when interacting with controls? No, let click open image, buttons handle their own.
+            >
+                <div className="absolute inset-0 bg-zinc-800 animate-pulse" /> {/* Skeleton placeholder underneath */}
+
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src={image.sm_url}
+                    alt={image.original_name}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-105 opacity-90 group-hover:opacity-100"
+                />
+
+                {/* Delete Button */}
+                <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(image.id); }}
+                    className="absolute top-3 right-3 p-2 bg-black/40 hover:bg-red-500 text-white/70 hover:text-white rounded-full opacity-0 group-hover:opacity-100 backdrop-blur-md transition-all border border-white/10"
+                    title="Delete Image"
+                >
+                    <Trash2 className="w-4 h-4" />
+                </motion.button>
+            </a>
+
+            {/* Hover Control Bar */}
+            <motion.div
+                initial={false}
+                animate={{ y: isHovered ? 0 : '100%' }}
+                transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+                className="absolute bottom-0 left-0 right-0 bg-zinc-950/90 backdrop-blur-xl border-t border-zinc-800 p-3.5 flex items-center justify-between gap-2 z-10"
+            >
+                {/* Controls Group */}
+                <div className="flex items-center gap-2">
+                    {/* Size Selector */}
+                    <div className="relative">
+                        <select
+                            value={size}
+                            onChange={(e) => setSize(e.target.value as any)}
+                            className="appearance-none bg-zinc-900 text-[10px] font-bold text-zinc-300 border border-zinc-700 rounded-lg pl-2 pr-6 py-1.5 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer hover:bg-zinc-800 transition-colors uppercase tracking-wider"
+                        >
+                            <option value="lg">LG (2K)</option>
+                            <option value="md">MD (1.2K)</option>
+                            <option value="sm">SM (600)</option>
+                            <option value="thumb">TH (200)</option>
+                        </select>
+                        <ChevronDown className="w-3 h-3 text-zinc-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
 
-                    {/* Info Area */}
-                    <div className="p-4 space-y-4">
-                        <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                                <h4 className="text-sm font-medium text-gray-900 truncate" title={image.original_name}>
-                                    {image.original_name}
-                                </h4>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                    {new Date(image.created_at).toLocaleDateString()} • WEBP + AVIF
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* URL List */}
-                        <div className="space-y-2">
-                            <div className="grid grid-cols-5 gap-2 text-xs font-medium text-gray-500 mb-1">
-                                <span>Size</span>
-                                <span className="col-span-1 text-right">Width</span>
-                                <span className="col-span-1 text-right">WebP</span>
-                                <span className="col-span-1">AVIF</span>
-                            </div>
-
-                            {[
-                                { label: 'Thumb', webp: image.thumb_url, width: 200, size: image.thumb_size },
-                                { label: 'SM', webp: image.sm_url, width: 600, size: image.sm_size },
-                                { label: 'MD', webp: image.md_url, width: 1200, size: image.md_size },
-                                { label: 'LG', webp: image.lg_url, width: 2000, size: image.lg_size },
-                            ].map((item) => (
-                                <div key={item.label} className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded-lg group/item hover:bg-gray-100 transition-colors">
-                                    <span className="font-semibold text-gray-700 w-10">{item.label}</span>
-                                    <span className="text-gray-500 w-10 text-right">{item.width}w</span>
-
-                                    {/* WebP Copy */}
-                                    <button
-                                        onClick={() => copyToClipboard(item.webp, `${image.id}-${item.label}-webp`)}
-                                        className="flex items-center gap-1 px-2 py-1 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                        title="Copy WebP URL"
-                                    >
-                                        <span className="text-[10px]">WEBP</span>
-                                        {copying === `${image.id}-${item.label}-webp` ? (
-                                            <span className="text-green-600 font-bold">✓</span>
-                                        ) : (
-                                            <Copy className="w-3 h-3" />
-                                        )}
-                                    </button>
-
-                                    {/* AVIF Copy - optimistically generated */}
-                                    <button
-                                        onClick={() => copyToClipboard(getAvifUrl(image, item.label.toLowerCase()), `${image.id}-${item.label}-avif`)}
-                                        className="flex items-center gap-1 px-2 py-1 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                                        title="Copy AVIF URL (Experimental)"
-                                    >
-                                        <span className="text-[10px] flex items-center gap-0.5"><Zap className="w-2 h-2" /> AVIF</span>
-                                        {copying === `${image.id}-${item.label}-avif` ? (
-                                            <span className="text-green-600 font-bold">✓</span>
-                                        ) : (
-                                            <Copy className="w-3 h-3" />
-                                        )}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
+                    {/* Format Toggles */}
+                    <div className="flex bg-zinc-900 rounded-lg border border-zinc-700 p-0.5">
+                        {(['avif', 'webp'] as const).map((fmt) => (
+                            <button
+                                key={fmt}
+                                onClick={() => setFormat(fmt)}
+                                className={`text-[9px] px-2 py-1 rounded-[4px] font-bold uppercase transition-all ${format === fmt
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+                                    }`}
+                            >
+                                {fmt}
+                            </button>
+                        ))}
                     </div>
                 </div>
-            ))}
-        </div>
+
+                {/* Copy Button */}
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleCopy}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-lg ${copied
+                            ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                            : 'bg-white text-zinc-950 hover:bg-zinc-200'
+                        }`}
+                >
+                    {copied ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                    )}
+                    {copied ? 'COPIED' : 'COPY'}
+                </motion.button>
+            </motion.div>
+
+            {/* Minimal Info (Visible when NOT hovered) */}
+            <motion.div
+                animate={{ opacity: isHovered ? 0 : 1, y: isHovered ? 10 : 0 }}
+                className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none"
+            >
+                <h4 className="text-white text-sm font-medium truncate drop-shadow-sm">{image.original_name}</h4>
+                <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] text-zinc-300 font-mono bg-white/10 px-1.5 py-0.5 rounded backdrop-blur-sm">
+                        {formatBytes(image.original_size)}
+                    </span>
+                </div>
+            </motion.div>
+        </motion.div>
     );
 }

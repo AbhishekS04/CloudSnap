@@ -9,9 +9,17 @@ import path from 'path';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
+import { requireAdmin } from '@/lib/auth';
+import { currentUser } from '@clerk/nextjs/server';
+
 export async function POST(req: NextRequest) {
     console.log('--- Upload Request Started ---');
     try {
+        // Protect Route
+        await requireAdmin().catch(() => {
+            throw new Error('Unauthorized');
+        });
+
         const formData = await req.formData();
         const file = formData.get('file') as File | null;
 
