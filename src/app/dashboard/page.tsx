@@ -8,6 +8,7 @@ import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, 
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { motion, AnimatePresence } from 'framer-motion';
+import { parseDropEvent } from '@/lib/upload-utils';
 
 export default function Dashboard() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
@@ -22,7 +23,7 @@ export default function Dashboard() {
     const [isGlobalDragOver, setIsGlobalDragOver] = useState(false);
 
     // Hook for global drop
-    const { uploadFile, isUploading, progress, error: uploadError } = useImageUpload({
+    const { uploadFile, uploadUrl, isUploading, progress, error: uploadError } = useImageUpload({
         onUploadComplete: (data) => {
             // Transform UploadResponse to ImageRecord structure
             // API returns: { id, original: {...}, optimized: { urls: {...}, sizes: {...} }, avif: {...} }
@@ -175,20 +176,19 @@ export default function Dashboard() {
     const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         setIsGlobalDragOver(false);
-        const files = Array.from(e.dataTransfer.files);
 
-        // Filter images
-        const imageFiles = files.filter(f => f.type.startsWith('image/'));
-        if (imageFiles.length === 0) return;
+        const { files, url } = await parseDropEvent(e);
 
-        // Upload each
-        for (const file of imageFiles) {
-            // We really should pass folder_id here. 
-            // But for now, let's just upload.
-            // I will assume the backend handles 'null' folder_id if not provided, putting it in root.
-            // If we want it in current folder, we need to modify update hooks or pass args.
-            // Assuming I'll fix hook later or it defaults to root.
-            await uploadFile(file);
+        if (files.length > 0) {
+            // Filter images and videos (since backend supports videos now)
+            const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+
+            for (const file of mediaFiles) {
+                await uploadFile(file);
+            }
+        } else if (url) {
+            // Handle URL drop (Pinterest, etc)
+            await uploadUrl(url);
         }
     };
 

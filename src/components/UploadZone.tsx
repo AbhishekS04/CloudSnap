@@ -5,6 +5,7 @@ import { Upload, X, FileImage, CheckCircle, AlertCircle, Loader2 } from 'lucide-
 import { cn } from '@/lib/utils';
 import { ImageRecord, UploadResponse } from '@/lib/types';
 import { useImageUpload } from '@/hooks/useImageUpload';
+import { parseDropEvent } from '@/lib/upload-utils';
 
 interface UploadZoneProps {
     onUploadComplete: (newImage: ImageRecord | UploadResponse) => void;
@@ -27,21 +28,19 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         setIsDragOver(false);
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
 
-        // 1. Priority: Check for Files first (Local Drop)
-        const files = e.dataTransfer.files;
-        if (files && files.length > 0) {
+        const { files, url } = await parseDropEvent(e);
+
+        if (files.length > 0) {
             uploadFile(files[0]);
             return;
         }
 
-        // 2. Secondary: Check for URL drop (e.g. from Pinterest)
-        const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-        if (url && (url.startsWith('http') || url.startsWith('https'))) {
-            // Basic validation to avoid random text
+        if (url) {
+            console.log('Detected Drop URL:', url);
             uploadUrl(url);
             return;
         }
@@ -91,7 +90,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                         "text-sm font-medium transition-colors",
                         isUploading ? "text-indigo-400 animate-pulse" : "text-zinc-300"
                     )}>
-                        {isUploading ? "Please wait, optimizing..." : "Click to upload, or drag and drop files/URLs"}
+                        {isUploading ? "Please wait, optimizing..." : isDragOver ? "Drop to Upload" : "Click to upload, or drag and drop files/URLs"}
                     </p>
                     <p className="text-xs text-zinc-500">
                         JPG, PNG (Max 10MB), MP4, WebM (Unlimited)

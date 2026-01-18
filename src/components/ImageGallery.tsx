@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
 import { VideoPlayer } from './VideoPlayer';
+import { cn } from '@/lib/utils';
 
 interface ImageGalleryProps {
     images: (ImageRecord & { avif?: any })[];
@@ -58,6 +59,23 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
     const [isHovered, setIsHovered] = useState(false);
     const [copied, setCopied] = useState(false);
+
+    // Smart Truncate Helper
+    const truncateFileName = (name: string, maxLength: number = 20) => {
+        if (name.length <= maxLength) return name;
+        const extIndex = name.lastIndexOf('.');
+        if (extIndex === -1) return name.substring(0, maxLength) + '...';
+
+        const ext = name.substring(extIndex);
+        const namePart = name.substring(0, extIndex);
+
+        if (namePart.length + ext.length <= maxLength) return name;
+
+        const startLen = Math.ceil((maxLength - ext.length - 3) / 2);
+        const endLen = Math.floor((maxLength - ext.length - 3) / 2);
+
+        return `${namePart.substring(0, startLen)}...${namePart.substring(namePart.length - endLen)}${ext}`;
+    };
 
     const getUrl = () => {
         if (isVideo && format === 'compressed') {
@@ -151,16 +169,19 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="group relative bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-zinc-700 hover:shadow-indigo-500/10 transition-colors"
+            className={cn(
+                "group relative bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:border-zinc-700 hover:shadow-indigo-500/10 transition-colors",
+                isHovered && "border-zinc-700 shadow-indigo-500/10"
+            )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
+            onClick={() => setIsHovered(!isHovered)} // Tap to toggle on mobile
             draggable
             onDragStartCapture={handleDragStart}
         >
             {/* Media Area */}
             <div
                 className="block aspect-video relative bg-zinc-950"
-                onClick={(e) => e.stopPropagation()}
             >
                 {isVideo ? (
                     <VideoPlayer
@@ -181,7 +202,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 )}
 
                 {/* Format Badge */}
-                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 flex items-center gap-2">
+                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 flex items-center gap-2 pointer-events-none">
                     <span className="text-[10px] font-mono text-zinc-300 uppercase">{image.original_ext}</span>
                     <div className="w-px h-3 bg-white/20" />
                     <span className={`text-[10px] font-mono font-bold ${format === 'original' ? 'text-indigo-400' : 'text-green-400'}`}>
@@ -190,11 +211,17 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 </div>
 
                 {/* Controls Overlay */}
-                <div className={`absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300 ${isHovered ? 'translate-y-0' : ''}`}> {/* Keep visible if hovered */}
+                <div
+                    className={cn(
+                        "absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-transform duration-300",
+                        isHovered ? "translate-y-0" : "translate-y-full"
+                    )}
+                    onClick={(e) => e.stopPropagation()} // Prevent closing when interacting with overlay
+                >
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex flex-col">
-                            <span className="text-sm font-medium text-white truncate max-w-[180px]" title={image.original_name}>
-                                {image.original_name}
+                            <span className="text-sm font-medium text-white" title={image.original_name}>
+                                {truncateFileName(image.original_name, 25)}
                             </span>
                             <span className="text-xs text-zinc-400 font-mono">
                                 {image.width}x{image.height} • {getSizeDisplay()}
@@ -249,7 +276,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
             <div className="p-4 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between">
                 <div className="flex-1 min-w-0 mr-4">
                     <p className="text-sm font-medium text-white truncate" title={image.original_name}>
-                        {image.original_name}
+                        {truncateFileName(image.original_name, 20)}
                     </p>
                     <div className="flex items-center gap-2">
                         <p className="text-xs text-zinc-500 font-mono mt-0.5">
@@ -258,7 +285,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                     </div>
                 </div>
                 <button
-                    onClick={() => onDelete(image.id)}
+                    onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
                     className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                 >
                     <Trash2 className="w-4 h-4" />
