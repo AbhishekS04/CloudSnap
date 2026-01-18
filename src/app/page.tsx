@@ -46,7 +46,7 @@ export default function Home() {
       {/* Footer Decoration */}
       <div className="fixed bottom-10 left-10 hidden xl:block">
         <div className="text-[10px] font-medium tracking-widest text-zinc-700 vertical-text rotate-180 uppercase font-sans">
-          CloudSnap v2.0 // EST 2024
+          CloudSnap v2.0 // EST 2026
         </div>
       </div>
     </div>
