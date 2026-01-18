@@ -1,6 +1,6 @@
-# Private Image Hosting & Optimization Platform
+# CloudSnap - Asset Hosting & Optimization
 
-A personal high-performance image hosting solution built with Next.js, Supabase, and Sharp. Designed to replace Cloudinary for personal portfolios with zero-compromise quality.
+A personal high-performance asset hosting solution built by Abhishek Singh with Next.js, Supabase, and Sharp. Designed to replace Cloudinary for personal portfolios with zero-compromise quality.
 
 ## Features
 

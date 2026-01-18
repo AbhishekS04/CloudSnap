@@ -7,8 +7,8 @@ import { dark } from '@clerk/themes'
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Asset Vault",
-  description: "Private High-Performance Asset Hosting",
+  title: "CloudSnap",
+  description: "Private High-Performance Asset Hosting by Abhishek Singh",
 };
 
 export default function RootLayout({

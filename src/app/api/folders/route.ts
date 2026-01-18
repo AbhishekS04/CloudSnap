@@ -63,3 +63,51 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    try {
+        await requireAdmin();
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get('id');
+
+        if (!id) {
+            return NextResponse.json({ error: 'Folder ID is required' }, { status: 400 });
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+        // Standard safety: check if folder is empty
+        const { count: imageCount, error: imgError } = await supabase
+            .from('images')
+            .select('*', { count: 'exact', head: true })
+            .eq('folder_id', id);
+
+        if (imgError) throw imgError;
+
+        const { count: childFolderCount, error: folderError } = await supabase
+            .from('folders')
+            .select('*', { count: 'exact', head: true })
+            .eq('parent_id', id);
+
+        if (folderError) throw folderError;
+
+        if (imageCount && imageCount > 0) {
+            return NextResponse.json({ error: 'Cannot delete folder: It contains assets. Please move or delete them first.' }, { status: 400 });
+        }
+
+        if (childFolderCount && childFolderCount > 0) {
+            return NextResponse.json({ error: 'Cannot delete folder: It contains sub-folders. Please remove them first.' }, { status: 400 });
+        }
+
+        const { error: deleteError } = await supabase
+            .from('folders')
+            .delete()
+            .eq('id', id);
+
+        if (deleteError) throw deleteError;
+
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}

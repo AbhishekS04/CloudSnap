@@ -9,6 +9,7 @@ import { UserButton, useUser } from "@clerk/nextjs";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseDropEvent } from '@/lib/upload-utils';
+import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 
 export default function Dashboard() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
@@ -17,30 +18,33 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
-    const { user, isLoaded } = useUser();
+    const { user } = useUser();
 
-    // Global Drag State
+    // Global DnD state
     const [isGlobalDragOver, setIsGlobalDragOver] = useState(false);
 
-    // Hook for global drop
-    const { uploadFile, uploadUrl, isUploading, progress, error: uploadError } = useImageUpload({
+    // Confirmation Modal States
+    const [deleteConfig, setDeleteConfig] = useState<{
+        isOpen: boolean;
+        type: 'image' | 'folder';
+        id: string;
+        name: string;
+    }>({ isOpen: false, type: 'image', id: '', name: '' });
+
+    // New Folder UI state
+    const [showFolderModal, setShowFolderModal] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+
+    const { uploadFile, uploadUrl, isUploading, progress } = useImageUpload({
         onUploadComplete: (data) => {
-            // Transform UploadResponse to ImageRecord structure
-            // API returns: { id, original: {...}, optimized: { urls: {...}, sizes: {...} }, avif: {...} }
-            // ImageRecord expects flat structure: { id, original_url, thumb_url, ... }
-
             const response = data as UploadResponse & { avif: any };
-
-            // Derive filename and ext from original.url if needed
             const urlParts = response.original.url.split('/').pop()?.split('.') || ['image', 'jpg'];
             const ext = urlParts.length > 1 ? urlParts.pop() : 'jpg';
             const name = urlParts.join('.');
 
-            // Construct optimistic ImageRecord
             const newImage: ImageRecord & { avif: any } = {
                 id: response.id,
                 created_at: new Date().toISOString(),
-                // removed 'filename' as it's not in ImageRecord
                 original_name: name,
                 original_ext: ext || 'jpg',
                 original_url: response.original.url,
@@ -48,7 +52,6 @@ export default function Dashboard() {
                 width: response.original.width,
                 height: response.original.height,
                 original_size: response.original.size,
-                // WebP (default optimized)
                 thumb_url: response.optimized.urls.thumb,
                 sm_url: response.optimized.urls.sm,
                 md_url: response.optimized.urls.md,
@@ -58,7 +61,6 @@ export default function Dashboard() {
                 md_size: response.optimized.sizes.md,
                 lg_size: response.optimized.sizes.lg,
                 optimized_format: 'webp',
-                // AVIF
                 avif: response.avif,
                 folder_id: currentFolder?.id || null
             };
@@ -71,12 +73,9 @@ export default function Dashboard() {
     const fetchData = useCallback(async () => {
         try {
             const folderId = currentFolder?.id || 'null';
-
-            // Fetch Images using the new parameter
             const imgRes = await fetch(`/api/images?limit=100&folder_id=${folderId}`);
             const imgs = await imgRes.json();
 
-            // Fetch Folders
             const folderRes = await fetch(`/api/folders?parent_id=${folderId}`);
             const fldrs = await folderRes.json();
 
@@ -94,21 +93,21 @@ export default function Dashboard() {
         fetchData();
     }, [fetchData]);
 
-    // Create Folder
     const handleCreateFolder = async () => {
-        const name = prompt("Enter folder name:");
-        if (!name) return;
-
+        if (!newFolderName.trim()) return;
         setRefreshing(true);
         try {
             const res = await fetch('/api/folders', {
                 method: 'POST',
-                body: JSON.stringify({ name, parent_id: currentFolder?.id })
+                body: JSON.stringify({ name: newFolderName, parent_id: currentFolder?.id })
             });
             if (res.ok) {
+                setNewFolderName('');
+                setShowFolderModal(false);
                 fetchData();
             } else {
-                alert("Failed to create folder");
+                const data = await res.json();
+                alert(data.error || "Failed to create folder");
                 setRefreshing(false);
             }
         } catch (err) {
@@ -117,7 +116,6 @@ export default function Dashboard() {
         }
     };
 
-    // Move Image
     const handleMoveImage = async (targetFolderId: string, imageIds: string[]) => {
         setRefreshing(true);
         try {
@@ -125,43 +123,38 @@ export default function Dashboard() {
                 method: 'POST',
                 body: JSON.stringify({ folderId: targetFolderId, imageIds })
             });
-            if (res.ok) {
-                fetchData();
-            } else {
-                setRefreshing(false);
-            }
+            if (res.ok) fetchData();
+            else setRefreshing(false);
         } catch (err) {
             console.error(err);
             setRefreshing(false);
         }
     };
 
-    // Delete Folder
-    const handleDeleteFolder = async (folder: Folder) => {
-        // Prevent accidental deletion checks
-        if (!confirm(`Delete folder "${folder.name}"?`)) return;
+    const confirmDelete = (type: 'image' | 'folder', id: string, name: string) => {
+        setDeleteConfig({ isOpen: true, type, id, name });
+    };
 
+    const handleDeleteExecute = async () => {
+        const { type, id } = deleteConfig;
         setRefreshing(true);
         try {
-            const res = await fetch(`/api/folders?id=${folder.id}`, {
-                method: 'DELETE'
-            });
-
+            const endpoint = type === 'image' ? `/api/images?id=${id}` : `/api/folders?id=${id}`;
+            const res = await fetch(endpoint, { method: 'DELETE' });
             if (res.ok) {
+                if (type === 'image') setImages(prev => prev.filter(img => img.id !== id));
                 fetchData();
             } else {
                 const json = await res.json();
-                alert(json.error || "Failed to delete folder");
-                setRefreshing(false);
+                alert(json.error || `Failed to delete ${type}`);
             }
         } catch (err) {
-            console.error("Failed to delete folder", err);
-            alert("Error deleting folder");
+            console.error(`Failed to delete ${type}`, err);
+        } finally {
             setRefreshing(false);
         }
     };
 
-    // Global DnD Handlers
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         if (!isGlobalDragOver) setIsGlobalDragOver(true);
@@ -176,18 +169,11 @@ export default function Dashboard() {
     const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault();
         setIsGlobalDragOver(false);
-
         const { files, url } = await parseDropEvent(e);
-
         if (files.length > 0) {
-            // Filter images and videos (since backend supports videos now)
             const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
-
-            for (const file of mediaFiles) {
-                await uploadFile(file);
-            }
+            for (const file of mediaFiles) await uploadFile(file);
         } else if (url) {
-            // Handle URL drop (Pinterest, etc)
             await uploadUrl(url);
         }
     };
@@ -199,7 +185,6 @@ export default function Dashboard() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            {/* Header */}
             <header className="sticky top-0 z-50 border-b border-zinc-800 bg-black/50 backdrop-blur-xl supports-[backdrop-filter]:bg-black/20">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -207,19 +192,14 @@ export default function Dashboard() {
                             <LayoutGrid className="w-5 h-5 text-white" />
                         </div>
                         <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                            Cloudinary Clone
+                            CloudSnap
                         </h1>
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* Breadcrumbs (Simplified) */}
                         <div className="hidden md:flex items-center gap-2 text-sm text-zinc-400 mr-4 bg-zinc-900/50 px-3 py-1.5 rounded-full border border-zinc-800">
-                            <button
-                                onClick={() => setCurrentFolder(null)}
-                                className="hover:text-white flex items-center gap-1"
-                            >
-                                <Home className="w-3.5 h-3.5" />
-                                Home
+                            <button onClick={() => setCurrentFolder(null)} className="hover:text-white flex items-center gap-1">
+                                <Home className="w-3.5 h-3.5" /> Home
                             </button>
                             {currentFolder && (
                                 <>
@@ -228,8 +208,6 @@ export default function Dashboard() {
                                 </>
                             )}
                         </div>
-
-                        {/* User Profile */}
                         <div className="flex items-center gap-3 pl-4 border-l border-zinc-800">
                             <span className="text-sm font-medium text-zinc-300 hidden sm:block">
                                 {user?.fullName || user?.username || 'User'}
@@ -240,9 +218,7 @@ export default function Dashboard() {
                 </div>
             </header>
 
-            {/* Main Content */}
-            <main className="max-w-screen-2xl mx-auto p-4 md:p-6 lg:p-8">
-                {/* Actions Bar */}
+            <main className="max-w-screen-2xl mx-auto p-4 md:p-6 lg:p-8 pb-32">
                 <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-4">
                         <h2 className="text-2xl font-bold text-white">
@@ -251,85 +227,83 @@ export default function Dashboard() {
                         <button
                             onClick={() => { setRefreshing(true); fetchData(); }}
                             className={`p-2 rounded-full hover:bg-zinc-800 transition-colors ${refreshing ? 'animate-spin' : ''}`}
-                            title="Refresh"
                         >
                             <RefreshCw className="w-5 h-5 text-zinc-400" />
                         </button>
                     </div>
-
-                    <div className="flex gap-2">
-                        <button
-                            onClick={handleCreateFolder}
-                            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-all"
-                        >
-                            <FolderPlus className="w-5 h-5" />
-                            <span className="hidden sm:inline">New Folder</span>
-                        </button>
-                    </div>
                 </div>
 
-                {/* Gallery */}
                 {loading ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {[...Array(4)].map((_, i) => (
-                            <div key={i} className="aspect-video bg-zinc-900 rounded-2xl animate-pulse" />
-                        ))}
+                        {[...Array(4)].map((_, i) => <div key={i} className="aspect-video bg-zinc-900 rounded-2xl animate-pulse" />)}
                     </div>
                 ) : (
                     <ImageGallery
                         images={images}
                         folders={folders}
-                        onDelete={async (id) => {
-                            // Optimistic update
-                            setImages(prev => prev.filter(img => img.id !== id));
-                            await fetch(`/api/images?id=${id}`, { method: 'DELETE' }); // Using Query Param for delete? 
-                            // Wait, original delete used DELETE Method on /api/images? 
-                            // Let's check api/images/route.ts. It handles DELETE?
-                            // I haven't checked DELETE logic. Assuming it works or I'll fix.
-                            // Actually, usually DELETE /api/images with body or query.
-                            // Let's assume the previous implementation was correct or I should check.
-                            // But for now, keep it simple.
+                        onDelete={(id) => {
+                            const img = images.find(i => i.id === id);
+                            confirmDelete('image', id, img?.original_name || 'Asset');
                         }}
                         onNavigate={setCurrentFolder}
                         onMoveImage={handleMoveImage}
+                        onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
                     />
                 )}
             </main>
 
-            {/* FAB - Upload */}
-            <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setShowUploadModal(true)}
-                className="fixed bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 z-40"
-            >
-                <Plus className="w-8 h-8" />
-            </motion.button>
-
-            {/* Upload Modal */}
+            {/* Modals & UI Overlays */}
             <AnimatePresence>
+                {showFolderModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                        onClick={() => setShowFolderModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl p-8"
+                        >
+                            <h3 className="text-xl font-bold mb-6 text-center">Create New Folder</h3>
+                            <input
+                                autoFocus type="text" value={newFolderName}
+                                onChange={(e) => setNewFolderName(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+                                placeholder="Enter folder name..."
+                                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-6"
+                            />
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowFolderModal(false)} className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-medium transition-all">Cancel</button>
+                                <button onClick={handleCreateFolder} className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-medium transition-all">Create</button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+
+                {deleteConfig.isOpen && (
+                    <DeleteConfirmationModal
+                        isOpen={deleteConfig.isOpen}
+                        onClose={() => setDeleteConfig(prev => ({ ...prev, isOpen: false }))}
+                        onConfirm={handleDeleteExecute}
+                        title={`Delete ${deleteConfig.type === 'folder' ? 'Folder' : 'Asset'}`}
+                        message={`Are you sure you want to delete this ${deleteConfig.type}`}
+                        itemName={deleteConfig.name}
+                    />
+                )}
+
                 {showUploadModal && (
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
                         onClick={() => setShowUploadModal(false)}
                     >
                         <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
+                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
                             className="w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative"
                         >
-                            <button
-                                onClick={() => setShowUploadModal(false)}
-                                className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors z-10"
-                            >
-                                <X className="w-6 h-6" />
-                            </button>
-
+                            <button onClick={() => setShowUploadModal(false)} className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors z-10"><X className="w-6 h-6" /></button>
                             <div className="p-8">
                                 <h3 className="text-xl font-bold mb-6 text-center">Upload to {currentFolder ? currentFolder.name : 'Root'}</h3>
                                 <UploadZone onUploadComplete={() => { fetchData(); setShowUploadModal(false); }} />
@@ -337,15 +311,10 @@ export default function Dashboard() {
                         </motion.div>
                     </motion.div>
                 )}
-            </AnimatePresence>
 
-            {/* Global Drop Overlay */}
-            <AnimatePresence>
                 {isGlobalDragOver && (
                     <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[60] bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center border-4 border-indigo-500 border-dashed m-4 rounded-3xl pointer-events-none transition-all duration-300"
                     >
                         <UploadCloud className="w-24 h-24 text-indigo-500 mb-6 animate-pulse" />
@@ -353,21 +322,14 @@ export default function Dashboard() {
                         <p className="text-zinc-400 mt-2">Release your files instantly</p>
                     </motion.div>
                 )}
-            </AnimatePresence>
 
-            {/* Global Upload Progress Overlay - NEW */}
-            <AnimatePresence>
                 {isUploading && !showUploadModal && (
                     <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 100 }}
+                        initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }}
                         className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[70] bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md flex flex-col items-center gap-4"
                     >
                         <div className="flex items-center gap-3 w-full">
-                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
-                                <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
-                            </div>
+                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center"><Loader2 className="w-5 h-5 text-indigo-400 animate-spin" /></div>
                             <div className="flex-1">
                                 <h3 className="text-white font-medium">Uploading & Optimizing...</h3>
                                 <p className="text-xs text-zinc-400">Processing your assets with high quality</p>
@@ -375,14 +337,30 @@ export default function Dashboard() {
                             <span className="text-sm font-mono text-indigo-400">{progress}%</span>
                         </div>
                         <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-indigo-500 transition-all duration-300 ease-out"
-                                style={{ width: `${progress}%` }}
-                            />
+                            <div className="h-full bg-indigo-500 transition-all duration-300 ease-out" style={{ width: `${progress}%` }} />
                         </div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* FABs */}
+            <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-40 items-end">
+                <motion.button
+                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowFolderModal(true)}
+                    className="flex items-center gap-2 px-5 py-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-white rounded-full font-medium shadow-xl transition-all"
+                >
+                    <FolderPlus className="w-5 h-5 text-indigo-400" /> New Folder
+                </motion.button>
+
+                <motion.button
+                    whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowUploadModal(true)}
+                    className="w-16 h-16 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30"
+                >
+                    <Plus className="w-8 h-8" />
+                </motion.button>
+            </div>
         </div>
     );
 }

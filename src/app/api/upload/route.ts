@@ -20,17 +20,37 @@ function logServer(msg: string) {
     }
 }
 
-// Route Segment Config
-export const maxDuration = 300; // 5 minutes for large video uploads
-export const dynamic = 'force-dynamic';
+// Helper for Smart Renaming
+function generateCleanName(mimeType: string, extension?: string): string {
+    const isVideo = mimeType.startsWith('video/');
+    const prefix = isVideo ? 'VID' : 'IMG';
+    // Generates a 6-character random alphanumeric string (e.g. 9B2A1Z)
+    const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // Determine extension
+    let ext = extension || '';
+    if (!ext) {
+        if (mimeType === 'image/jpeg') ext = 'jpg';
+        else if (mimeType === 'image/png') ext = 'png';
+        else if (mimeType === 'image/webp') ext = 'webp';
+        else if (mimeType === 'image/gif') ext = 'gif';
+        else if (mimeType === 'video/mp4') ext = 'mp4';
+        else if (mimeType === 'video/webm') ext = 'webm';
+        else ext = 'bin';
+    }
+    // Remove leading dot if present
+    ext = ext.replace(/^\./, '');
+
+    return `${prefix}_${randomId}.${ext}`;
+}
+
+// ... existing code ...
 
 export async function POST(req: NextRequest) {
     logServer('--- Upload Request Started ---');
     try {
         // Protect Route
         await requireAdmin().catch(() => {
-            // throw new Error('Unauthorized');
-            // For now, logged as warning if it fails due to middleware bypass
             console.warn('Auth check failed or bypassed');
         });
 
@@ -64,15 +84,13 @@ export async function POST(req: NextRequest) {
 
             // Try to deduce mime type and filename
             mimeType = fetchRes.headers.get('content-type') || 'application/octet-stream';
-            fileName = path.basename(new URL(url).pathname) || `upload-${Date.now()}`;
 
-            // Fix Pinterest/opaque URLs causing no extension
-            if (!path.extname(fileName)) {
-                const ext = mimeType.split('/')[1] || 'bin';
-                fileName = `${fileName}.${ext}`;
-            }
+            // Generate Smart Name
+            const originalPathName = new URL(url).pathname;
+            const deducedExt = path.extname(originalPathName);
+            fileName = generateCleanName(mimeType, deducedExt);
 
-            console.log(`URL fetched. Size: ${buffer.length}, Type: ${mimeType}, Name: ${fileName}`);
+            console.log(`URL fetched. Size: ${buffer.length}, Type: ${mimeType}, Smart Name: ${fileName}`);
 
         } else if (contentType.includes('multipart/form-data')) {
             // Handle File Upload via Busboy (Memory Buffered)
@@ -114,7 +132,6 @@ export async function POST(req: NextRequest) {
                 });
 
                 bb.on('field', (name, val) => {
-                    // logServer(`headers: Busboy field found name=${name} val=${val}`);
                     if (name === 'folderId') {
                         formFolderId = val;
                     }
@@ -142,9 +159,12 @@ export async function POST(req: NextRequest) {
             try {
                 const result = await p;
                 buffer = result.buffer;
-                fileName = result.fileName;
                 mimeType = result.mimeType;
                 folderId = result.folderId;
+
+                // Generate Smart Name
+                const originalExt = path.extname(result.fileName);
+                fileName = generateCleanName(mimeType, originalExt);
 
                 logServer(`File received (buffered): ${fileName}, Size: ${buffer.length}, Type: ${mimeType}`);
             } catch (e: any) {
@@ -156,6 +176,7 @@ export async function POST(req: NextRequest) {
         } else {
             return NextResponse.json({ error: `Unsupported Content-Type: ${contentType}` }, { status: 400 });
         }
+
 
 
         // Allow image types
