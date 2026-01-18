@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder, UploadResponse } from '@/lib/types';
-import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud, Menu } from 'lucide-react';
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,6 +38,7 @@ export default function Dashboard() {
     // New Folder UI state
     const [showFolderModal, setShowFolderModal] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const { uploadFile, uploadUrl, isUploading, progress } = useImageUpload({
         onUploadComplete: (data) => {
@@ -198,7 +199,8 @@ export default function Dashboard() {
             onDrop={handleDrop}
         >
             <Sidebar
-                className="hidden lg:flex"
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
                 folders={allFolders}
                 currentFolder={currentFolder}
                 filterType={filterType}
@@ -214,41 +216,49 @@ export default function Dashboard() {
 
             <div className="lg:pl-72 flex flex-col min-h-screen">
                 <header className="sticky top-0 z-30 border-b border-zinc-800/40 bg-zinc-950/80 backdrop-blur-xl">
-                    <div className="w-full px-6 md:px-8 lg:px-10 h-16 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="lg:hidden w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                    <div className="w-full px-4 md:px-6 h-16 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {/* Mobile Menu Toggle */}
+                            <button
+                                onClick={() => setIsSidebarOpen(true)}
+                                className="lg:hidden p-2 -ml-2 text-zinc-400 hover:text-white transition-colors"
+                            >
+                                <Menu className="w-6 h-6" />
+                            </button>
+
+                            <div className="hidden sm:flex lg:hidden w-8 h-8 bg-indigo-600 rounded-lg items-center justify-center">
                                 <Cloud className="w-5 h-5 text-white" />
                             </div>
 
-                            <div className="flex items-center gap-2 text-sm text-zinc-400 bg-zinc-900/40 px-3 py-1.5 rounded-2xl border border-zinc-800/50 h-9">
+                            <div className="flex items-center gap-1.5 text-[13px] text-zinc-400 bg-zinc-900/40 px-3 py-1.5 rounded-2xl border border-zinc-800/50">
                                 <button
                                     onClick={() => { setCurrentFolder(null); setFilterType('all'); }}
-                                    className="hover:text-white flex items-center gap-1.5 transition-colors h-full"
+                                    className="hover:text-white flex items-center gap-1.5 transition-colors"
                                 >
-                                    <Home className="w-4 h-4" />
-                                    <span className="font-medium pt-0.5">Library</span>
+                                    <Home className="w-3.5 h-3.5" />
+                                    <span className="font-medium">Library</span>
                                 </button>
                                 {currentFolder && (
-                                    <div className="flex items-center gap-2 h-full">
-                                        <ChevronRight className="w-3.5 h-3.5 text-zinc-700" />
-                                        <span className="text-white font-semibold pt-0.5">{currentFolder.name}</span>
-                                    </div>
+                                    <>
+                                        <ChevronRight className="w-3 h-3 text-zinc-700" />
+                                        <span className="text-white font-semibold truncate max-w-[100px] sm:max-w-[200px]">{currentFolder.name}</span>
+                                    </>
                                 )}
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-4">
                             <button
                                 onClick={() => { setRefreshing(true); fetchData(); }}
                                 className={cn(
-                                    "p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all",
+                                    "p-2 rounded-xl border border-zinc-800/50 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all",
                                     refreshing && "animate-spin"
                                 )}
                             >
-                                <RefreshCw className="w-5 h-5" />
+                                <RefreshCw className="w-4 h-4 sm:w-5 h-5" />
                             </button>
-                            <div className="lg:hidden h-8 w-px bg-zinc-800" />
-                            <div className="lg:hidden">
+                            <div className="lg:hidden h-6 sm:h-8 w-px bg-zinc-800" />
+                            <div className="lg:hidden scale-90 sm:scale-100">
                                 <UserButton afterSignOutUrl="/" />
                             </div>
                         </div>
@@ -257,7 +267,7 @@ export default function Dashboard() {
 
                 <main className="flex-1 p-6 md:p-8 lg:p-10 w-full">
                     <div className="mb-10 flex flex-col gap-1">
-                        <h2 className="text-4xl font-extrabold tracking-tight text-white leading-tight">
+                        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
                             {filterType === 'photos' ? 'Photos' : filterType === 'videos' ? 'Videos' : currentFolder ? currentFolder.name : 'Assets'}
                         </h2>
                         <p className="text-zinc-500 font-medium">
@@ -378,23 +388,33 @@ export default function Dashboard() {
                 )}
             </AnimatePresence>
 
-            {/* Mobile FABs */}
-            <div className="lg:hidden fixed bottom-8 right-8 flex flex-col gap-3 z-40 items-end">
-                <motion.button
-                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowFolderModal(true)}
-                    className="flex items-center gap-2 px-5 py-3 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-white rounded-full font-medium shadow-xl transition-all"
-                >
-                    <FolderPlus className="w-5 h-5 text-indigo-400" /> New Folder
-                </motion.button>
+            {/* Mobile FABs - Redesigned to be more integrated and aligned */}
+            <div className="lg:hidden fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+                <AnimatePresence>
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowFolderModal(true)}
+                        className="flex items-center justify-center w-12 h-12 bg-zinc-900 border border-zinc-800 text-white rounded-2xl shadow-2xl"
+                        title="New Folder"
+                    >
+                        <FolderPlus className="w-5 h-5 text-indigo-400" />
+                    </motion.button>
 
-                <motion.button
-                    whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowUploadModal(true)}
-                    className="w-16 h-16 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30"
-                >
-                    <Plus className="w-8 h-8" />
-                </motion.button>
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center justify-center w-14 h-14 bg-white text-black rounded-2xl shadow-2xl shadow-white/10"
+                        title="Upload Assets"
+                    >
+                        <Plus className="w-6 h-6" />
+                    </motion.button>
+                </AnimatePresence>
             </div>
         </div>
     );

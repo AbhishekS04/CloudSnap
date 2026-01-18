@@ -27,6 +27,8 @@ interface SidebarProps {
     onCreateFolder: () => void;
     onUploadClick: () => void;
     onDeleteFolder?: (folder: Folder) => void;
+    isOpen?: boolean;
+    onClose?: () => void;
     className?: string;
 }
 
@@ -39,15 +41,14 @@ export function Sidebar({
     onCreateFolder,
     onUploadClick,
     onDeleteFolder,
+    isOpen,
+    onClose,
     className
 }: SidebarProps) {
     const { user } = useUser();
 
-    return (
-        <aside className={cn(
-            "w-72 border-r border-zinc-800/40 bg-zinc-950 h-screen flex flex-col fixed left-0 top-0 z-40 transition-all",
-            className
-        )}>
+    const sidebarContent = (
+        <div className="flex flex-col h-full">
             {/* Logo */}
             <div className="p-6 flex items-center gap-3">
                 <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -62,14 +63,14 @@ export function Sidebar({
             {/* Quick Actions */}
             <div className="px-4 mb-8">
                 <button
-                    onClick={onUploadClick}
+                    onClick={() => { onUploadClick(); onClose?.(); }}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-white text-black hover:bg-zinc-200 rounded-2xl font-semibold text-sm transition-all shadow-lg shadow-white/5 active:scale-95 mb-3"
                 >
                     <Plus className="w-5 h-5" />
                     Upload Assets
                 </button>
                 <button
-                    onClick={onCreateFolder}
+                    onClick={() => { onCreateFolder(); onClose?.(); }}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-zinc-900 border border-zinc-800 text-white hover:bg-zinc-800 rounded-2xl font-medium text-sm transition-all active:scale-95"
                 >
                     <FolderPlus className="w-5 h-5 text-indigo-400" />
@@ -88,7 +89,7 @@ export function Sidebar({
                                 icon={<LayoutGrid className="w-4 h-4" />}
                                 label="All Assets"
                                 active={currentFolder === null && filterType === 'all'}
-                                onClick={() => onNavigate(null)}
+                                onClick={() => { onNavigate(null); onClose?.(); }}
                             />
                             <NavItem
                                 icon={<ImageIcon className="w-4 h-4" />}
@@ -97,6 +98,7 @@ export function Sidebar({
                                 onClick={() => {
                                     onNavigate(null);
                                     onSetFilter('photos');
+                                    onClose?.();
                                 }}
                             />
                             <NavItem
@@ -106,6 +108,7 @@ export function Sidebar({
                                 onClick={() => {
                                     onNavigate(null);
                                     onSetFilter('videos');
+                                    onClose?.();
                                 }}
                             />
                         </div>
@@ -122,7 +125,7 @@ export function Sidebar({
                                 parentId={null}
                                 level={0}
                                 currentFolderId={currentFolder?.id}
-                                onNavigate={onNavigate}
+                                onNavigate={(f) => { onNavigate(f); onClose?.(); }}
                                 onDeleteFolder={onDeleteFolder}
                             />
                         </div>
@@ -151,7 +154,43 @@ export function Sidebar({
                     </SignOutButton>
                 </div>
             </div>
-        </aside>
+        </div>
+    );
+
+    return (
+        <>
+            {/* Desktop Sidebar */}
+            <aside className={cn(
+                "hidden lg:flex w-72 border-r border-zinc-800/40 bg-zinc-950 h-screen flex-col fixed left-0 top-0 z-40",
+                className
+            )}>
+                {sidebarContent}
+            </aside>
+
+            {/* Mobile Sidebar (Drawer) */}
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={onClose}
+                            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[50] lg:hidden"
+                        />
+                        <motion.aside
+                            initial={{ x: "-100%" }}
+                            animate={{ x: 0 }}
+                            exit={{ x: "-100%" }}
+                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                            className="fixed left-0 top-0 bottom-0 w-[280px] bg-zinc-950 border-r border-zinc-800/50 z-[60] lg:hidden shadow-2xl"
+                        >
+                            {sidebarContent}
+                        </motion.aside>
+                    </>
+                )}
+            </AnimatePresence>
+        </>
     );
 }
 

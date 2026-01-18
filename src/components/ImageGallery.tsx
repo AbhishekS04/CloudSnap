@@ -164,20 +164,36 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            onClick={() => setIsHovered(!isHovered)}
+            onClick={(e) => {
+                // On mobile/touch this usually toggles, but we want to prevent navigation if we're showing the overlay
+                if (window.innerWidth < 1024) {
+                    setIsHovered(!isHovered);
+                }
+            }}
             draggable
             onDragStartCapture={handleDragStart}
         >
-            {/* Media Area */}
             <div className="relative w-full aspect-[4/5] overflow-hidden">
                 {isVideo ? (
                     <VideoPlayer
                         src={getUrl()}
                         poster={getPreviewSrc()}
                         className="w-full h-full object-cover"
+                        isMuted={!isHovered}
                     />
                 ) : (
-                    <a href={getUrl()} target="_blank" rel="noreferrer" className="block w-full h-full">
+                    <a
+                        href={getUrl()}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-full h-full"
+                        onClick={(e) => {
+                            if (window.innerWidth < 1024) {
+                                e.preventDefault();
+                                setIsHovered(!isHovered);
+                            }
+                        }}
+                    >
                         <img
                             src={getPreviewSrc()}
                             alt={image.original_name}
