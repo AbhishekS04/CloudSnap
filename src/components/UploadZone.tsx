@@ -75,13 +75,21 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                     )}
                 </div>
 
-                <div className="space-y-1">
-                    <p className="text-sm font-medium text-zinc-300">
-                        {isUploading ? "Optimizing & Uploading..." : "Click to upload or drag and drop"}
+                <div className="space-y-2">
+                    <p className={cn(
+                        "text-sm font-medium transition-colors",
+                        isUploading ? "text-indigo-400 animate-pulse" : "text-zinc-300"
+                    )}>
+                        {isUploading ? "Please wait, optimizing..." : "Click to upload or drag and drop"}
                     </p>
                     <p className="text-xs text-zinc-500">
                         JPG, PNG up to 10MB
                     </p>
+                    {isUploading && (
+                        <p className="text-[10px] text-zinc-600 font-mono">
+                            Do not close window
+                        </p>
+                    )}
                 </div>
 
                 {isUploading && (

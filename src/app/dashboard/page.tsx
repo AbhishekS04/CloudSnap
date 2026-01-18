@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder } from '@/lib/types';
-import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2 } from 'lucide-react';
 import { UserButton, useUser } from "@clerk/nextjs";
 import { useImageUpload } from '@/hooks/useImageUpload';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -310,9 +310,38 @@ export default function Dashboard() {
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[60] bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center border-4 border-indigo-500 border-dashed m-4 rounded-3xl pointer-events-none transition-all duration-300"
                     >
-                        <UploadCloud className="w-24 h-24 text-indigo-500 mb-6 animate-pulse" /> {/* Changed from bounce to pulse */}
+                        <UploadCloud className="w-24 h-24 text-indigo-500 mb-6 animate-pulse" />
                         <h2 className="text-3xl font-bold text-white">Drop to Upload</h2>
                         <p className="text-zinc-400 mt-2">Release your files instantly</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Global Upload Progress Overlay - NEW */}
+            <AnimatePresence>
+                {isUploading && !showUploadModal && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 100 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 100 }}
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[70] bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md flex flex-col items-center gap-4"
+                    >
+                        <div className="flex items-center gap-3 w-full">
+                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                                <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-white font-medium">Uploading & Optimizing...</h3>
+                                <p className="text-xs text-zinc-400">Processing your assets with high quality</p>
+                            </div>
+                            <span className="text-sm font-mono text-indigo-400">{progress}%</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-indigo-500 transition-all duration-300 ease-out"
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

@@ -98,6 +98,28 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         e.dataTransfer.effectAllowed = 'move';
     };
 
+    const getSizeDisplay = () => {
+        let bytes = 0;
+
+        if (format === 'original') {
+            bytes = image.original_size;
+        } else if (format === 'webp') {
+            // Use type assertion or optional chaining safely
+            const sizeKey = `${size}_size` as keyof ImageRecord;
+            // @ts-ignore - Dynamic access
+            bytes = image[sizeKey] || 0;
+        } else if (format === 'avif' && image.avif) {
+            // Access avif data if available
+            const sizeKey = `${size}_size`;
+            // @ts-ignore - The avif object structure matches what we expect
+            bytes = image.avif.sizes?.[size] || 0;
+        }
+
+        if (!bytes) return 'Unknown Size';
+
+        return (bytes / 1024).toFixed(2) + ' KB';
+    };
+
     return (
         <motion.div
             layout
@@ -113,7 +135,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         >
             {/* Image Area - Click to open raw */}
             <a
-                href={image.md_url}
+                href={getUrl()}
                 target="_blank"
                 rel="noreferrer"
                 className="block aspect-video relative bg-zinc-950"
@@ -128,8 +150,12 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 />
 
                 {/* Format Badge */}
-                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10">
+                <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10 flex items-center gap-2">
                     <span className="text-[10px] font-mono text-zinc-300 uppercase">{image.original_ext}</span>
+                    <div className="w-px h-3 bg-white/20" />
+                    <span className={`text-[10px] font-mono font-bold ${format === 'original' ? 'text-indigo-400' : 'text-green-400'}`}>
+                        {format.toUpperCase()}
+                    </span>
                 </div>
 
                 {/* Controls Overlay */}
@@ -148,18 +174,20 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                         ))}
                     </div>
 
-                    {/* Size Toggles */}
-                    <div className="flex bg-black/50 rounded-lg p-1 border border-zinc-800">
-                        {(['lg', 'md', 'sm', 'thumb'] as const).map((s) => (
-                            <button
-                                key={s}
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSize(s); }}
-                                className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors uppercase ${size === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                            >
-                                {s}
-                            </button>
-                        ))}
-                    </div>
+                    {/* Size Toggles - Hide for original if you want, but user might want to resize original? No, original is original sized. */}
+                    {format !== 'original' && (
+                        <div className="flex bg-black/50 rounded-lg p-1 border border-zinc-800">
+                            {(['lg', 'md', 'sm', 'thumb'] as const).map((s) => (
+                                <button
+                                    key={s}
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSize(s); }}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition-colors uppercase ${size === s ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Copy Button */}
                     <button
@@ -180,7 +208,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                     </p>
                     <div className="flex items-center gap-2">
                         <p className="text-xs text-zinc-500 font-mono mt-0.5">
-                            {(image.original_size / 1024).toFixed(2)} KB
+                            {getSizeDisplay()}
                         </p>
                     </div>
                 </div>
