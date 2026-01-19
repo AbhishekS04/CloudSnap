@@ -189,35 +189,72 @@ export default function DashboardClient() {
         }
     };
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        if (!isGlobalDragOver) setIsGlobalDragOver(true);
-    };
+    // Drag counter for robust detection
+    const dragCounter = useRef(0);
 
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-        setIsGlobalDragOver(false);
-    };
+    useEffect(() => {
+        const handleDragEnter = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter.current += 1;
+            if (e.dataTransfer?.types && (e.dataTransfer.types.includes('Files') || e.dataTransfer.types.includes('text/uri-list') || e.dataTransfer.types.includes('text/plain'))) {
+                setIsGlobalDragOver(true);
+            }
+        };
 
-    const handleDrop = async (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsGlobalDragOver(false);
-        const { files, url } = await parseDropEvent(e);
-        if (files.length > 0) {
-            const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
-            for (const file of mediaFiles) await uploadFile(file, currentFolder?.id);
-        } else if (url) {
-            await uploadUrl(url, currentFolder?.id);
-        }
-    };
+        const handleDragLeave = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dragCounter.current -= 1;
+            if (dragCounter.current <= 0) {
+                setIsGlobalDragOver(false);
+                dragCounter.current = 0; // reset to be safe
+            }
+        };
+
+        const handleDragOver = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Crucial: this enables drop
+        };
+
+        const handleWindowDrop = async (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsGlobalDragOver(false);
+            dragCounter.current = 0;
+
+            const { files, url } = await parseDropEvent(e as unknown as React.DragEvent);
+            if (files.length > 0) {
+                const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+                for (const file of mediaFiles) await uploadFile(file, currentFolder?.id);
+            } else if (url) {
+                await uploadUrl(url, currentFolder?.id);
+            }
+        };
+
+        window.addEventListener('dragenter', handleDragEnter);
+        window.addEventListener('dragleave', handleDragLeave);
+        window.addEventListener('dragover', handleDragOver);
+        window.addEventListener('drop', handleWindowDrop);
+
+        return () => {
+            window.removeEventListener('dragenter', handleDragEnter);
+            window.removeEventListener('dragleave', handleDragLeave);
+            window.removeEventListener('dragover', handleDragOver);
+            window.removeEventListener('drop', handleWindowDrop);
+        };
+    }, [currentFolder, uploadFile, uploadUrl]);
+
+    // Cleanup old handlers - not needed on div anymore
+    // const handleDragOver = ...
+    // const handleDragLeave = ...
+    // const handleDrop = ...
 
     return (
         <div
             className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-indigo-500/30"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+        // Handlers removed from here
         >
             <Sidebar
                 isOpen={isSidebarOpen}
