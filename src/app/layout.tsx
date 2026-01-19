@@ -11,7 +11,7 @@ __   __                                 _            _ _ _   _   _        _
 
 
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from '@clerk/nextjs'
@@ -28,9 +28,30 @@ const playfair = Playfair_Display({
   style: ["normal", "italic"],
 });
 
+export const viewport: Viewport = {
+  themeColor: "#4f46e5",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "CloudSnap",
   description: "Private High-Performance Asset Hosting by Abhishek Singh",
+  manifest: "/manifest.json",
+  icons: [
+    { rel: "apple-touch-icon", url: "/icons/android-chrome-192x192.png" },
+    { rel: "icon", url: "/icons/android-chrome-192x192.png" },
+  ],
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CloudSnap",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
