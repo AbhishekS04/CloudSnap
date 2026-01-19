@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import { Cloud, Lock, Mail } from 'lucide-react';
 import { ClientUserButton } from './ClientUserButton';
@@ -16,8 +17,13 @@ export function GuestView({ content, adminEmail }: GuestViewProps) {
             <header className="sticky top-0 z-30 border-b border-zinc-800/40 bg-zinc-950/80 backdrop-blur-xl">
                 <div className="w-full px-4 md:px-6 h-16 flex items-center justify-between max-w-7xl mx-auto">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <Cloud className="w-5 h-5 text-white" />
+                        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 overflow-hidden relative">
+                            <Image
+                                src="/icons/android-chrome-192x192.png"
+                                alt="CloudSnap Logo"
+                                fill
+                                className="object-cover"
+                            />
                         </div>
                         <span className="text-lg font-bold tracking-tight text-white italic-display">CloudSnap</span>
                     </div>

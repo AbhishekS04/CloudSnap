@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import {
     LayoutGrid,
@@ -52,8 +53,13 @@ export function Sidebar({
         <div className="flex flex-col h-full">
             {/* Logo */}
             <div className="p-6 flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                    <Cloud className="w-6 h-6 text-white" />
+                <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 overflow-hidden relative">
+                    <Image
+                        src="/icons/android-chrome-192x192.png"
+                        alt="CloudSnap Logo"
+                        fill
+                        className="object-cover"
+                    />
                 </div>
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-white leading-tight italic-display">CloudSnap</h1>

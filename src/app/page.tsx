@@ -22,10 +22,10 @@ export default function Home() {
         >
           {/* Main Heading */}
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-8xl md:text-9xl lg:text-[12rem] font-medium tracking-tighter leading-[0.8] text-white select-none">
+            <h1 className="text-5xl sm:text-7xl md:text-9xl lg:text-[12rem] font-medium tracking-tighter leading-[0.8] text-white select-none">
               Cloud<span className="italic-display text-white/90">Snap</span>
             </h1>
-            <span className="text-2xl md:text-3xl font-light text-zinc-500 font-display italic tracking-wide">
+            <span className="text-xl sm:text-3xl font-light text-zinc-500 font-display italic tracking-wide">
               The new standard.
             </span>
           </div>
