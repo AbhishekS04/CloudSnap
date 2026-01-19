@@ -14,16 +14,8 @@ const nextConfig: NextConfig = {
   ],
 };
 
-const withPWA = require("@ducanh2912/next-pwa").default({
-  dest: "public",
-  cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
-  reloadOnOnline: true,
-  swcMinify: true,
-  disable: process.env.NODE_ENV === "development",
-  workboxOptions: {
-    disableDevLogs: true,
-  },
-});
+// PWA configuration is disabled due to Webpack/Turbopack conflict
+// Manual Service Worker is used instead via public/sw.js
 
-export default withPWA(nextConfig);
+export default nextConfig;
+// export default withPWA(nextConfig);

@@ -14,6 +14,7 @@ __   __                                 _            _ _ _   _   _        _
 import type { Metadata, Viewport } from "next";
 import { Outfit, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import { SWRegistration } from "@/components/SWRegistration";
 import { ClerkProvider } from '@clerk/nextjs'
 import { dark } from '@clerk/themes'
 
@@ -63,6 +64,7 @@ export default function RootLayout({
     <ClerkProvider appearance={{ baseTheme: dark }}>
       <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${playfair.variable}`}>
         <body className={`${outfit.className} bg-[#050505] text-zinc-100 antialiased`}>
+          <SWRegistration />
           {children}
         </body>
       </html>
