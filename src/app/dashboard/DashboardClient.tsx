@@ -27,6 +27,9 @@ export default function DashboardClient() {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const { user } = useUser();
 
+    // Storage refresh key
+    const [storageRefreshKey, setStorageRefreshKey] = useState(0);
+
     // Auto-refresh state
     const refreshIconRef = useRef<AnimatedIconHandle>(null);
 
@@ -78,6 +81,8 @@ export default function DashboardClient() {
 
             setImages(prev => [newImage, ...prev]);
             setShowUploadModal(false);
+            // Refresh storage indicator
+            setStorageRefreshKey(prev => prev + 1);
         }
     });
 
@@ -270,6 +275,7 @@ export default function DashboardClient() {
                 onCreateFolder={() => setShowFolderModal(true)}
                 onUploadClick={() => setShowUploadModal(true)}
                 onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
+                storageRefreshKey={storageRefreshKey}
             />
 
             <div className="lg:pl-72 flex flex-col min-h-screen">

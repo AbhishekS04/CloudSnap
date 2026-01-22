@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Folder } from "@/lib/types";
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { ClientUserButton } from "./ClientUserButton";
+import { StorageIndicator } from "./StorageIndicator";
 
 interface SidebarProps {
     folders: Folder[];
@@ -32,6 +33,7 @@ interface SidebarProps {
     isOpen?: boolean;
     onClose?: () => void;
     className?: string;
+    storageRefreshKey?: number;
 }
 
 export function Sidebar({
@@ -45,7 +47,8 @@ export function Sidebar({
     onDeleteFolder,
     isOpen,
     onClose,
-    className
+    className,
+    storageRefreshKey
 }: SidebarProps) {
     const { user } = useUser();
 
@@ -139,6 +142,9 @@ export function Sidebar({
                     </div>
                 </nav>
             </div>
+
+            {/* Storage Indicator */}
+            <StorageIndicator storageRefreshKey={storageRefreshKey} />
 
             {/* User Profile / Logout */}
             <div className="p-4 mt-auto border-t border-zinc-800/40">
