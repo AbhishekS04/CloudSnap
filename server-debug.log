@@ -252,3 +252,12 @@
 2026-04-24T17:26:51.113Z - Uploading to Telegram: IMG_AC7AQV.jpeg (0.05MB)
 2026-04-24T17:26:53.845Z - Telegram upload complete. Chunked=false, Chunks=1
 2026-04-24T17:26:54.036Z - Asset saved: id=11370241-1534-478f-8364-e05c519291c5
+2026-04-24T18:02:29.128Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:02:29.391Z - Fatal: Clerk: auth() was called but Clerk can't detect usage of clerkMiddleware(). Please ensure the following:
+- Your Middleware exists at ./src/middleware.(ts|js)
+- clerkMiddleware() is used in your Next.js Middleware.
+- Your Middleware matcher is configured to match this route or page.
+- If you are using the src directory, make sure the Middleware file is inside of it.
+
+For more details, see https://clerk.com/err/auth-middleware
+
