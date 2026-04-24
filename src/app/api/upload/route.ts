@@ -1,15 +1,27 @@
+/**
+ * /api/upload — CloudSnap Upload Handler
+ *
+ * Accepts images and videos via:
+ *   - multipart/form-data (file field)
+ *   - application/json    (URL field for remote fetch)
+ *
+ * Storage: ALL binaries go to Telegram. Supabase stores only metadata.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import busboy from 'busboy';
-import { processImage, getMetadata, SIZES, ProcessedImage } from '@/lib/image-processing';
-import { processVideo } from '@/lib/video-processing';
+import { getMetadata } from '@/lib/image-processing';
+import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
-import { UploadResponse, OptimizedSizes, OptimizedUrls } from '@/lib/types';
 import path from 'path';
+import fs from 'fs';
 
 import { requireAdmin } from '@/lib/auth';
-import { currentUser } from '@clerk/nextjs/server';
-import fs from 'fs';
+
+// ─────────────────────────────────────────────
+// Logging
+// ─────────────────────────────────────────────
 
 function logServer(msg: string) {
     try {
@@ -20,114 +32,113 @@ function logServer(msg: string) {
     }
 }
 
-// Helper for Smart Renaming
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+
 function generateCleanName(mimeType: string, extension?: string): string {
     const isVideo = mimeType.startsWith('video/');
-    const prefix = isVideo ? 'VID' : 'IMG';
-    // Generates a 6-character random alphanumeric string (e.g. 9B2A1Z)
+    const prefix  = isVideo ? 'VID' : 'IMG';
     const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    // Determine extension
     let ext = extension || '';
     if (!ext) {
         if (mimeType === 'image/jpeg') ext = 'jpg';
-        else if (mimeType === 'image/png') ext = 'png';
+        else if (mimeType === 'image/png')  ext = 'png';
         else if (mimeType === 'image/webp') ext = 'webp';
-        else if (mimeType === 'image/gif') ext = 'gif';
-        else if (mimeType === 'video/mp4') ext = 'mp4';
+        else if (mimeType === 'image/gif')  ext = 'gif';
+        else if (mimeType === 'video/mp4')  ext = 'mp4';
         else if (mimeType === 'video/webm') ext = 'webm';
         else ext = 'bin';
     }
-    // Remove leading dot if present
     ext = ext.replace(/^\./, '');
-
     return `${prefix}_${randomId}.${ext}`;
 }
 
-// ... existing code ...
+// ─────────────────────────────────────────────
+// POST /api/upload
+// ─────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-    logServer('--- Upload Request Started ---');
+    logServer('--- Upload Request Started (Telegram mode) ---');
     try {
-        // Protect Route
-        await requireAdmin().catch(() => {
-            console.warn('Auth check failed or bypassed');
-        });
+        await requireAdmin();
 
-        let file: File | null = null;
-        let buffer: Buffer = Buffer.alloc(0);
+
+        let buffer: Buffer   = Buffer.alloc(0);
         let fileName: string = '';
         let mimeType: string = '';
         let folderId: string = 'null';
 
         const contentType = req.headers.get('content-type') || '';
-        logServer(`Content-Type: ${contentType}`);
-
         const { searchParams } = new URL(req.url);
         const queryFolderId = searchParams.get('folderId');
 
+        // ── A. Handle JSON (URL fetch) ─────────────────────────────────────
         if (contentType.includes('application/json')) {
-            // Handle URL Upload
             const body = await req.json();
             const { url, folderId: fId } = body;
             folderId = fId || queryFolderId || 'null';
+
             if (!url) {
                 return NextResponse.json({ error: 'URL is required' }, { status: 400 });
             }
 
-            console.log(`Fetching image from URL: ${url}`);
+            logServer(`Fetching file from URL: ${url}`);
             const fetchRes = await fetch(url);
             if (!fetchRes.ok) {
-                return NextResponse.json({ error: `Failed to fetch image from URL: ${fetchRes.statusText}` }, { status: 400 });
+                return NextResponse.json(
+                    { error: `Failed to fetch from URL: ${fetchRes.statusText}` },
+                    { status: 400 },
+                );
             }
 
             const arrayBuffer = await fetchRes.arrayBuffer();
-            buffer = Buffer.from(arrayBuffer);
-            mimeType = fetchRes.headers.get('content-type') || '';
-
-            // Attempt to get filename from URL
+            buffer   = Buffer.from(arrayBuffer);
+            mimeType = fetchRes.headers.get('content-type') || 'application/octet-stream';
             const urlPath = new URL(url).pathname;
-            fileName = path.basename(urlPath) || `downloaded-image-${Date.now()}`;
+            fileName = path.basename(urlPath) || `download-${Date.now()}`;
             if (!path.extname(fileName)) {
-                // Add extension based on mimeType if missing
-                const ext = mimeType.split('/')[1] || 'bin';
-                fileName = `${fileName}.${ext}`;
+                fileName = `${fileName}.${mimeType.split('/')[1] || 'bin'}`;
             }
 
-            logServer(`URL Fetch Success: ${fileName}, Type: ${mimeType}, Size: ${buffer.length}`);
-        } else if (contentType.includes('multipart/form-data')) {
-            // Handle File Upload via Busboy (Memory Buffered)
-            logServer('Starting Busboy setup (Buffered Mode)...');
+            logServer(`URL fetch: ${fileName}, ${mimeType}, ${buffer.length}B`);
 
-            // 1. Read entire body into buffer
+        // ── B. Handle multipart/form-data (direct file upload) ────────────
+        } else if (contentType.includes('multipart/form-data')) {
+            logServer('Starting busboy parse...');
+
             let fullBodyBuffer: Buffer;
             try {
-                const arrayBuffer = await req.arrayBuffer();
-                fullBodyBuffer = Buffer.from(arrayBuffer);
-                logServer(`Read full body buffer: ${fullBodyBuffer.length} bytes`);
+                const ab = await req.arrayBuffer();
+                fullBodyBuffer = Buffer.from(ab);
+                logServer(`Body buffer size: ${fullBodyBuffer.length}B`);
             } catch (e: any) {
-                logServer(`Failed to read req.arrayBuffer: ${e.message}`);
-                return NextResponse.json({ error: `Failed to read request body: ${e.message}` }, { status: 500 });
+                logServer(`Failed to read body: ${e.message}`);
+                return NextResponse.json({ error: `Failed to read body: ${e.message}` }, { status: 500 });
             }
 
             const bb = busboy({ headers: { 'content-type': contentType } });
 
-            const p = new Promise<{ buffer: Buffer, fileName: string, mimeType: string, folderId: string }>((resolve, reject) => {
+            const p = new Promise<{
+                buffer: Buffer;
+                fileName: string;
+                mimeType: string;
+                folderId: string;
+            }>((resolve, reject) => {
                 let fileBuffer: Buffer | null = null;
                 let fileInfoName = '';
                 let fileInfoMime = '';
                 let formFolderId = 'null';
 
                 bb.on('file', (name, file, info) => {
-                    logServer(`headers: Busboy file found field=${name} filename=${info.filename}`);
                     if (name === 'file') {
                         const chunks: Buffer[] = [];
                         file.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
                         file.on('close', () => {
-                            logServer(`headers: Busboy file closed filename=${info.filename}`);
-                            fileBuffer = Buffer.concat(chunks);
-                            fileInfoName = info.filename;
-                            fileInfoMime = info.mimeType;
+                            fileBuffer    = Buffer.concat(chunks);
+                            fileInfoName  = info.filename;
+                            fileInfoMime  = info.mimeType;
                         });
                     } else {
                         file.resume();
@@ -135,316 +146,138 @@ export async function POST(req: NextRequest) {
                 });
 
                 bb.on('field', (name, val) => {
-                    logServer(`headers: Busboy field found name=${name} val=${val}`);
-                    if (name === 'folderId') {
-                        formFolderId = val;
-                        logServer(`headers: Captured folderId=${formFolderId}`);
-                    }
+                    if (name === 'folderId') formFolderId = val;
                 });
 
                 bb.on('close', () => {
-                    logServer('headers: Busboy close event fired');
-                    logServer(`headers: Final state at close -> fileName=${fileInfoName}, folderId=${formFolderId}`);
                     if (!fileBuffer) {
-                        logServer('headers: Busboy closed but NO FILE BUFFER');
                         reject(new Error('No file provided'));
                     } else {
                         resolve({ buffer: fileBuffer, fileName: fileInfoName, mimeType: fileInfoMime, folderId: formFolderId });
                     }
                 });
 
-                bb.on('error', (err: any) => {
-                    logServer(`headers: Busboy error event: ${err.message}`);
-                    reject(err);
-                });
+                bb.on('error', reject);
             });
 
-            // Write buffer to busboy
             bb.end(fullBodyBuffer);
 
             try {
                 const result = await p;
-                buffer = result.buffer;
+                buffer   = result.buffer;
                 mimeType = result.mimeType;
-                // Prefer busboy field, fallback to query param
-                folderId = (result.folderId && result.folderId !== 'null') ? result.folderId : (queryFolderId || 'null');
-
-                // Generate Smart Name
+                folderId = (result.folderId && result.folderId !== 'null')
+                    ? result.folderId
+                    : (queryFolderId || 'null');
                 const originalExt = path.extname(result.fileName);
                 fileName = generateCleanName(mimeType, originalExt);
-
-                logServer(`File received (buffered): ${fileName}, Size: ${buffer.length}, Type: ${mimeType}`);
+                logServer(`File parsed: ${fileName}, ${mimeType}, ${buffer.length}B`);
             } catch (e: any) {
-                logServer(`Error parsing busboy (Detailed catch): ${e.message}`);
-                // @ts-ignore
-                if (e.stack) logServer(e.stack);
-                return NextResponse.json({ error: `Failed to parse form data: ${e.message}` }, { status: 400 });
+                logServer(`Busboy error: ${e.message}`);
+                return NextResponse.json({ error: `Failed to parse form: ${e.message}` }, { status: 400 });
             }
         } else {
             return NextResponse.json({ error: `Unsupported Content-Type: ${contentType}` }, { status: 400 });
         }
 
-
-
-        // Allow image types
-        const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
-        // Allow video types
-        const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
-        if (!ALLOWED_TYPES.includes(mimeType) && !ALLOWED_VIDEO_TYPES.includes(mimeType)) {
-            console.error('Invalid file type:', mimeType);
-            return NextResponse.json({ error: `Invalid file type: ${mimeType}. Only JPG, PNG, MP4, WebM, MOV are allowed.` }, { status: 400 });
+        // ── Validate mime type ─────────────────────────────────────────────
+        const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+        const ALLOWED_VIDEO = ['video/mp4', 'video/webm', 'video/quicktime'];
+        if (!ALLOWED_IMAGE.includes(mimeType) && !ALLOWED_VIDEO.includes(mimeType)) {
+            return NextResponse.json(
+                { error: `Unsupported file type: ${mimeType}` },
+                { status: 400 },
+            );
         }
 
-        // Limit images to 10MB, but videos are unlimited (effectively)
-        if (mimeType.startsWith('image/') && buffer.length > 10 * 1024 * 1024) {
-            console.error('File too large:', buffer.length);
-            return NextResponse.json({ error: `Image too large. Max 10MB.` }, { status: 400 });
+        // ── Get image dimensions if applicable ─────────────────────────────
+        let width  = 0;
+        let height = 0;
+        let duration: number | null = null;
+
+        if (mimeType.startsWith('image/')) {
+            try {
+                const meta = await getMetadata(buffer);
+                width  = meta.width;
+                height = meta.height;
+            } catch (_) {
+                // Non-fatal — dimensions just won't be stored
+            }
         }
 
-        console.log('File converted to buffer/verified');
+        // ── Upload to Telegram ─────────────────────────────────────────────
+        logServer(`Uploading to Telegram: ${fileName} (${(buffer.length / 1024 / 1024).toFixed(2)}MB)`);
 
-        // Handle Video Processing
-        if (mimeType.startsWith('video/')) {
-            const id = uuidv4();
-            const originalExt = path.extname(fileName).replace('.', '');
+        const telegramResult = await smartUploadToTelegram(buffer, fileName, mimeType);
 
-            // 1. Process Video
-            const processed = await processVideo(buffer, fileName);
+        logServer(`Telegram upload complete. Chunked=${telegramResult.isChunked}, Chunks=${telegramResult.chunkCount}`);
 
-            // 2. Upload Artifacts to Supabase
-            // Original (Optimized/FastStart)
-            const originalPath = `videos/original/${id}.${originalExt}`;
-            await supabaseAdmin.storage.from('assets').upload(originalPath, processed.optimizedOriginalBuffer, {
-                contentType: mimeType,
-                upsert: false
-            });
-
-            // Thumbnail
-            const thumbPath = `video-thumbs/${id}.jpg`;
-            await supabaseAdmin.storage.from('assets').upload(thumbPath, processed.thumbnailBuffer, {
-                contentType: 'image/jpeg',
-                upsert: false
-            });
-
-            // Compressed
-            const compressedPath = `videos/compressed/${id}.mp4`;
-            await supabaseAdmin.storage.from('assets').upload(compressedPath, processed.compressedBuffer, {
-                contentType: 'video/mp4',
-                upsert: false
-            });
-
-            const { data: { publicUrl: originalUrl } } = supabaseAdmin.storage.from('assets').getPublicUrl(originalPath);
-            const { data: { publicUrl: thumbUrl } } = supabaseAdmin.storage.from('assets').getPublicUrl(thumbPath);
-            const { data: { publicUrl: compressedUrl } } = supabaseAdmin.storage.from('assets').getPublicUrl(compressedPath);
-
-            // 3. Insert into DB
-            const { error: dbError } = await supabaseAdmin
-                .from('images') // We use the same 'images' table for now
-                .insert({
-                    id,
-                    original_name: fileName,
-                    original_ext: originalExt,
-                    mime_type: mimeType,
-                    width: processed.metadata.width,
-                    height: processed.metadata.height,
-                    original_size: buffer.length,
-                    optimized_format: 'mp4',
-                    original_url: originalUrl,
-                    thumb_url: thumbUrl,
-                    sm_url: thumbUrl,
-                    md_url: compressedUrl, // MD mapped to Compressed Video
-                    lg_url: compressedUrl,
-                    thumb_size: processed.thumbnailBuffer.length,
-                    sm_size: 0,
-                    md_size: processed.compressedBuffer.length,
-                    lg_size: 0,
-                    created_at: new Date().toISOString(),
-                    folder_id: folderId !== 'null' ? folderId : null
-                });
-
-            if (dbError) throw dbError;
-
-            return NextResponse.json({
-                id,
-                original: {
-                    url: originalUrl,
-                    size: buffer.length,
-                    width: processed.metadata.width,
-                    height: processed.metadata.height,
-                    duration: processed.metadata.duration
-                },
-                optimized: {
-                    format: 'mp4',
-                    urls: { thumb: thumbUrl, sm: thumbUrl, md: compressedUrl, lg: compressedUrl },
-                    sizes: { thumb: processed.thumbnailBuffer.length, sm: 0, md: processed.compressedBuffer.length, lg: 0 }
-                }
-            });
-        }
-
-        // Image Processing (Original Flow)
-        // 1. Get Metadata & Validate
-        const metadata = await getMetadata(buffer);
+        // ── Save metadata to Supabase ──────────────────────────────────────
         const id = uuidv4();
-        const originalExt = path.extname(fileName).replace('.', '');
-        const originalPath = `original/${id}.${originalExt}`;
-
-        // 2. Upload Original to Supabase
-        console.log(`Uploading original to: ${originalPath}`);
-        const { error: uploadError } = await supabaseAdmin.storage
-            .from('assets')
-            .upload(originalPath, buffer, {
-                contentType: mimeType,
-                cacheControl: '3600',
-                upsert: false,
-            });
-
-        if (uploadError) {
-            console.error('Supabase Upload Error (Original):', JSON.stringify(uploadError, null, 2));
-            throw new Error(`Failed to upload original image: ${uploadError.message}`);
-        }
-        console.log('Original image uploaded successfully');
-
-        const { data: { publicUrl: originalUrl } } = supabaseAdmin.storage
-            .from('assets')
-            .getPublicUrl(originalPath);
-
-
-        // 3. Process & Upload Versions
-
-        const getFormatFromType = (mime: string): 'jpeg' | 'png' | null => {
-            if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpeg';
-            if (mime === 'image/png') return 'png';
-            return null;
-        };
-
-        const originalFormat = getFormatFromType(mimeType);
-
-        // Helper to process and upload a single variant
-        const processAndUpload = async (sizeName: string, targetWidth: number, format: 'webp' | 'avif' | 'jpeg' | 'png') => {
-            const processed: ProcessedImage = await processImage(buffer, targetWidth, format);
-
-            // Use correct extension for filePath
-            let ext: string = format;
-            if (format === 'jpeg') ext = 'jpg';
-
-            const fileName = `${ext}/${sizeName}/${id}.${ext}`;
-
-            const { error: uploadError } = await supabaseAdmin.storage
-                .from('assets')
-                .upload(fileName, processed.buffer, {
-                    contentType: `image/${format}`,
-                    cacheControl: '31536000',
-                    upsert: false,
-                });
-
-            if (uploadError) {
-                console.error(`Upload Error ${sizeName} (${format}):`, uploadError);
-                throw new Error(`Failed to upload ${sizeName} ${format} version`);
-            }
-
-            const { data: { publicUrl } } = supabaseAdmin.storage
-                .from('assets')
-                .getPublicUrl(fileName);
-
-            return {
-                format,
-                sizeName: sizeName as keyof OptimizedUrls,
-                url: publicUrl,
-                sizeInBytes: processed.size
-            };
-        };
-
-        // Generate tasks
-        const allTasks = [];
-
-        // WebP Tasks
-        for (const [sizeName, targetWidth] of Object.entries(SIZES)) {
-            allTasks.push(processAndUpload(sizeName, targetWidth, 'webp'));
-        }
-        // AVIF Tasks
-        for (const [sizeName, targetWidth] of Object.entries(SIZES)) {
-            allTasks.push(processAndUpload(sizeName, targetWidth, 'avif'));
-        }
-        // Original Format Tasks (Optimized)
-        if (originalFormat) {
-            console.log(`Generating optimized duplicates for original format: ${originalFormat}`);
-            for (const [sizeName, targetWidth] of Object.entries(SIZES)) {
-                allTasks.push(processAndUpload(sizeName, targetWidth, originalFormat));
-            }
-        }
-
-        const results = await Promise.all(allTasks);
-
-        const webpUrls: Partial<OptimizedUrls> = {};
-        const webpSizes: Partial<OptimizedSizes> = {};
-        const avifUrls: Partial<OptimizedUrls> = {};
-        const avifSizes: Partial<OptimizedSizes> = {};
-
-        results.forEach(r => {
-            if (r.format === 'webp') {
-                webpUrls[r.sizeName] = r.url;
-                webpSizes[r.sizeName] = r.sizeInBytes;
-            } else {
-                avifUrls[r.sizeName] = r.url;
-                avifSizes[r.sizeName] = r.sizeInBytes;
-            }
-        });
+        const chatId = process.env.TELEGRAM_STORAGE_CHAT_ID!;
 
         const { error: dbError } = await supabaseAdmin
-            .from('images')
+            .from('assets')
             .insert({
                 id,
-                original_name: fileName,
-                original_ext: originalExt,
-                mime_type: mimeType,
-                width: metadata.width,
-                height: metadata.height,
-                original_size: buffer.length,
-                optimized_format: 'webp',
-                thumb_url: webpUrls.thumb,
-                sm_url: webpUrls.sm,
-                md_url: webpUrls.md,
-                lg_url: webpUrls.lg,
-                thumb_size: webpSizes.thumb,
-                sm_size: webpSizes.sm,
-                md_size: webpSizes.md,
-                lg_size: webpSizes.lg,
-                created_at: new Date().toISOString(),
-                folder_id: folderId !== 'null' ? folderId : null
+                original_name:      fileName,
+                mime_type:          mimeType,
+                width:              width  || null,
+                height:             height || null,
+                duration:           duration,
+                original_size:      buffer.length,
+                telegram_file_ids:  telegramResult.fileIds,
+                telegram_chat_id:   chatId,
+                is_chunked:         telegramResult.isChunked,
+                chunk_count:        telegramResult.chunkCount,
+                folder_id:          folderId !== 'null' ? folderId : null,
+                created_at:         new Date().toISOString(),
             });
 
         if (dbError) {
-            console.error('DB Insert Error:', dbError);
-            throw new Error('Failed to save metadata');
+            logServer(`DB insert error: ${dbError.message}`);
+            throw new Error(`Failed to save metadata: ${dbError.message}`);
         }
 
-        const response: UploadResponse & { avif: any } = {
-            id,
-            original: {
-                url: originalUrl,
-                size: buffer.length,
-                width: metadata.width,
-                height: metadata.height,
-            },
-            optimized: {
-                format: 'webp',
-                urls: webpUrls as OptimizedUrls,
-                sizes: webpSizes as OptimizedSizes,
-            },
-            avif: {
-                format: 'avif',
-                urls: avifUrls,
-                sizes: avifSizes
-            }
-        };
+        logServer(`Asset saved: id=${id}`);
 
-        return NextResponse.json(response);
+        // ── Return response ────────────────────────────────────────────────
+        const cdnUrl = `/api/cdn/${id}`;
+
+        return NextResponse.json({
+            id,
+            cdnUrl,
+            // Convenience URLs matching Cloudinary's API style
+            urls: {
+                original: cdnUrl,
+                thumb:    `${cdnUrl}?w=200&fmt=webp`,
+                sm:       `${cdnUrl}?w=600&fmt=webp`,
+                md:       `${cdnUrl}?w=1200&fmt=webp`,
+                lg:       `${cdnUrl}?w=2000&fmt=webp`,
+            },
+            meta: {
+                originalName: fileName,
+                mimeType,
+                width,
+                height,
+                duration,
+                originalSize: buffer.length,
+                isChunked:    telegramResult.isChunked,
+                chunkCount:   telegramResult.chunkCount,
+            },
+        });
 
     } catch (error: any) {
-        console.error('API Error:', error);
-        logServer(`Fatal API Error: ${error.message}`);
-        // @ts-ignore
-        if (error.stack) logServer(error.stack);
-        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+        console.error('Upload API Error:', error);
+        logServer(`Fatal: ${error.message}`);
+        
+        if (error.message === 'Unauthorized: Admin access required') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        
+        return NextResponse.json(
+            { error: error.message || 'Internal Server Error' },
+            { status: 500 },
+        );
     }
 }

@@ -234,3 +234,21 @@
 2026-01-18T21:32:11.497Z - --- Upload Request Started ---
 2026-01-18T21:32:11.512Z - Content-Type: application/json
 2026-01-18T21:32:11.609Z - URL Fetch Success: 27a557a84b1dff6c0fb1f7798f167ccf.jpg, Type: image/jpeg, Size: 31685
+2026-04-24T17:19:07.125Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T17:19:07.149Z - Fetching file from URL: https://picsum.photos/400/300
+2026-04-24T17:19:08.704Z - URL fetch: 300.jpeg, image/jpeg, 8690B
+2026-04-24T17:19:08.708Z - Uploading to Telegram: 300.jpeg (0.01MB)
+2026-04-24T17:19:09.792Z - Fatal: Telegram sendDocument failed (400): {"ok":false,"error_code":400,"description":"Bad Request: chat not found"}
+2026-04-24T17:25:48.202Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T17:25:48.226Z - Fetching file from URL: https://picsum.photos/400/300
+2026-04-24T17:25:48.801Z - URL fetch: 300.jpeg, image/jpeg, 17437B
+2026-04-24T17:25:48.805Z - Uploading to Telegram: 300.jpeg (0.02MB)
+2026-04-24T17:25:50.634Z - Telegram upload complete. Chunked=false, Chunks=1
+2026-04-24T17:25:51.647Z - Asset saved: id=da2ea758-02e8-467f-8ad7-f7cbdd6c5c5f
+2026-04-24T17:26:51.100Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T17:26:51.104Z - Starting busboy parse...
+2026-04-24T17:26:51.105Z - Body buffer size: 54936B
+2026-04-24T17:26:51.112Z - File parsed: IMG_AC7AQV.jpeg, image/jpeg, 54741B
+2026-04-24T17:26:51.113Z - Uploading to Telegram: IMG_AC7AQV.jpeg (0.05MB)
+2026-04-24T17:26:53.845Z - Telegram upload complete. Chunked=false, Chunks=1
+2026-04-24T17:26:54.036Z - Asset saved: id=11370241-1534-478f-8364-e05c519291c5

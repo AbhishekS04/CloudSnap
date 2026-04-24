@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// Storage quota in bytes (default: 500MB for Supabase free tier)
-const STORAGE_QUOTA_BYTES = parseInt(process.env.STORAGE_QUOTA_MB || '500') * 1024 * 1024;
+// Storage quota in bytes (1 TB - near infinite for personal use)
+const STORAGE_QUOTA_BYTES = 1024 * 1024 * 1024 * 1024;
 
 export async function GET() {
     try {
-        // Fetch all images from the database
+        await requireAdmin();
+        // Fetch all assets from the database
         const { data: images, error } = await supabaseAdmin
-            .from('images')
-            .select('original_size, thumb_size, sm_size, md_size, lg_size');
+            .from('assets')
+            .select('original_size');
 
         if (error) {
             throw error;
@@ -21,7 +23,7 @@ export async function GET() {
         const formatBytes = (bytes: number): string => {
             if (bytes === 0) return '0 B';
             const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
         };
@@ -41,12 +43,8 @@ export async function GET() {
         let usedBytes = 0;
 
         images.forEach(img => {
-            // Sum all size fields
+            // Sum only original size since our Telegram CDN generates optimized variants on-the-fly
             usedBytes += (img.original_size || 0);
-            usedBytes += (img.thumb_size || 0);
-            usedBytes += (img.sm_size || 0);
-            usedBytes += (img.md_size || 0);
-            usedBytes += (img.lg_size || 0);
         });
 
         const percentage = (usedBytes / STORAGE_QUOTA_BYTES) * 100;
@@ -62,6 +60,9 @@ export async function GET() {
 
     } catch (error: any) {
         console.error('Storage usage calculation error:', error);
+        if (error.message === 'Unauthorized: Admin access required') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
         return NextResponse.json(
             { error: error.message || 'Failed to calculate storage usage' },
             { status: 500 }

@@ -59,3 +59,47 @@ export interface Folder {
   parent_id: string | null;
   created_at: string;
 }
+
+// ─────────────────────────────────────────────
+// New: Telegram-backed Asset (replaces ImageRecord for new uploads)
+// ─────────────────────────────────────────────
+
+export interface Asset {
+  id: string;
+  original_name: string;
+  mime_type: string;
+  width: number | null;
+  height: number | null;
+  duration: number | null;
+  original_size: number;
+  telegram_file_ids: string[];
+  telegram_chat_id: string;
+  is_chunked: boolean;
+  chunk_count: number;
+  folder_id: string | null;
+  created_at: string;
+  // Derived CDN URL helpers (not stored in DB)
+  cdnUrl?: string;
+}
+
+export interface UploadAssetResponse {
+  id: string;
+  cdnUrl: string;
+  urls: {
+    original: string;
+    thumb: string;
+    sm: string;
+    md: string;
+    lg: string;
+  };
+  meta: {
+    originalName: string;
+    mimeType: string;
+    width: number;
+    height: number;
+    duration: number | null;
+    originalSize: number;
+    isChunked: boolean;
+    chunkCount: number;
+  };
+}

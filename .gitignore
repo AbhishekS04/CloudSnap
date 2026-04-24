@@ -43,5 +43,9 @@ server-debug.log
 *.tsbuildinfo
 next-env.d.ts
 
-
 .agent
+
+# Graphify & Exports
+/graphify-out
+export_to_obsidian.py
+__pycache__/

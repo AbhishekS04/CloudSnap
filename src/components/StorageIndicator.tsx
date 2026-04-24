@@ -89,7 +89,7 @@ export function StorageIndicator({ storageRefreshKey }: StorageIndicatorProps) {
                         <Database className={`w-5 h-5 ${getIconColor()}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Storage</p>
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Telegram Storage</p>
                         <p className="text-sm font-bold text-white">
                             {storage.usedFormatted} <span className="text-zinc-600">/</span> <span className="text-zinc-400">{storage.quotaFormatted}</span>
                         </p>

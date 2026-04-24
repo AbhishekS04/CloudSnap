@@ -115,7 +115,8 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         e.stopPropagation();
         e.preventDefault();
         try {
-            await navigator.clipboard.writeText(getUrl());
+            const absoluteUrl = new URL(getUrl(), window.location.origin).href;
+            await navigator.clipboard.writeText(absoluteUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
