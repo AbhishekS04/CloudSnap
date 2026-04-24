@@ -261,3 +261,88 @@
 
 For more details, see https://clerk.com/err/auth-middleware
 
+2026-04-24T18:41:03.292Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:41:03.746Z - Starting busboy parse...
+2026-04-24T18:41:03.778Z - Body buffer size: 10469376B
+2026-04-24T18:41:03.903Z - Busboy error: Unexpected end of form
+2026-04-24T18:43:10.644Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:43:11.080Z - Starting busboy parse...
+2026-04-24T18:43:11.082Z - Body buffer size: 1279994B
+2026-04-24T18:43:11.090Z - File parsed: VID_AR97H2.mp4, video/mp4, 1279787B
+2026-04-24T18:43:11.090Z - Uploading to Telegram: VID_AR97H2.mp4 (1.22MB)
+2026-04-24T18:43:15.362Z - Fatal: Cannot read properties of undefined (reading 'file_id')
+2026-04-24T18:43:45.451Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:43:45.816Z - Starting busboy parse...
+2026-04-24T18:43:45.819Z - Body buffer size: 1279994B
+2026-04-24T18:43:45.825Z - File parsed: VID_L0C6VL.mp4, video/mp4, 1279787B
+2026-04-24T18:43:45.825Z - Uploading to Telegram: VID_L0C6VL.mp4 (1.22MB)
+2026-04-24T18:43:48.159Z - Fatal: Cannot read properties of undefined (reading 'file_id')
+2026-04-24T18:47:06.229Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:47:06.707Z - Starting busboy parse...
+2026-04-24T18:47:06.709Z - Body buffer size: 1279994B
+2026-04-24T18:47:06.717Z - File parsed: VID_VEO7IX.mp4, video/mp4, 1279787B
+2026-04-24T18:47:06.717Z - Uploading to Telegram: VID_VEO7IX.mp4 (1.22MB)
+2026-04-24T18:47:09.416Z - Fatal: Cannot read properties of undefined (reading 'file_id')
+2026-04-24T18:47:49.498Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:47:49.891Z - Starting busboy parse...
+2026-04-24T18:47:49.893Z - Body buffer size: 1279994B
+2026-04-24T18:47:49.901Z - File parsed: VID_JV80P3.mp4, video/mp4, 1279787B
+2026-04-24T18:47:49.901Z - Uploading to Telegram: VID_JV80P3.mp4 (1.22MB)
+2026-04-24T18:47:53.336Z - Fatal: Cannot read properties of undefined (reading 'file_id')
+2026-04-24T18:48:39.755Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:48:40.187Z - Starting busboy parse...
+2026-04-24T18:48:40.190Z - Body buffer size: 1279994B
+2026-04-24T18:48:40.201Z - File parsed: VID_5OVMPP.mp4, video/mp4, 1279787B
+2026-04-24T18:48:40.201Z - Uploading to Telegram: VID_5OVMPP.mp4 (1.22MB)
+2026-04-24T18:48:43.629Z - Fatal: Cannot read properties of undefined (reading 'file_id')
+2026-04-24T18:53:06.681Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:53:07.139Z - Starting busboy parse...
+2026-04-24T18:53:07.144Z - Body buffer size: 1279994B
+2026-04-24T18:53:07.153Z - File parsed: VID_MWL2M2.mp4, video/mp4, 1279787B
+2026-04-24T18:53:07.153Z - Uploading to Telegram: VID_MWL2M2.mp4 (1.22MB)
+2026-04-24T18:53:13.405Z - Telegram upload complete. Chunked=false, Chunks=1
+2026-04-24T18:53:13.600Z - Asset saved: id=e90347ec-8532-43a5-ae86-b165417d26ed
+2026-04-24T18:55:22.197Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:55:22.689Z - Starting busboy parse...
+2026-04-24T18:55:22.721Z - Body buffer size: 10452992B
+2026-04-24T18:55:22.859Z - Busboy error: Unexpected end of form
+2026-04-24T18:58:07.734Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T18:58:08.214Z - Starting busboy parse...
+2026-04-24T18:58:08.248Z - Body buffer size: 10485760B
+2026-04-24T18:58:08.345Z - Busboy error: Unexpected end of form
+2026-04-24T19:00:45.831Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:00:46.266Z - Starting busboy parse...
+2026-04-24T19:00:46.295Z - Body buffer size: 10485760B
+2026-04-24T19:00:46.426Z - Busboy error: Unexpected end of form
+2026-04-24T19:01:07.858Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:01:08.295Z - Starting busboy parse...
+2026-04-24T19:01:08.329Z - Body buffer size: 10469376B
+2026-04-24T19:01:08.390Z - Busboy error: Unexpected end of form
+2026-04-24T19:15:04.183Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:15:04.581Z - Starting busboy parse...
+2026-04-24T19:15:04.617Z - Body buffer size: 10485760B
+2026-04-24T19:15:04.749Z - Busboy error: Unexpected end of form
+2026-04-24T19:28:09.317Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:28:09.929Z - Starting busboy parse...
+2026-04-24T19:28:09.946Z - Body buffer size: 10485760B
+2026-04-24T19:28:10.033Z - Busboy error: Unexpected end of form
+2026-04-24T19:35:40.452Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:35:41.164Z - Starting busboy parse...
+2026-04-24T19:35:41.251Z - Body buffer size: 35366214B
+2026-04-24T19:35:41.319Z - File parsed: VID_RD8XQ9.mp4, video/mp4, 35366035B
+2026-04-24T19:35:41.320Z - Uploading to Telegram: VID_RD8XQ9.mp4 (33.73MB)
+2026-04-24T19:39:41.642Z - Telegram upload complete. Chunked=false, Chunks=1
+2026-04-24T19:39:41.889Z - Asset saved: id=6d1980de-1640-45d5-a067-c84224800e2f
+2026-04-24T19:41:59.548Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:42:00.352Z - Starting busboy parse...
+2026-04-24T19:42:00.435Z - Body buffer size: 35366214B
+2026-04-24T19:42:00.511Z - File parsed: VID_LK5J5N.mp4, video/mp4, 35366035B
+2026-04-24T19:42:00.511Z - Uploading to Telegram: VID_LK5J5N.mp4 (33.73MB)
+2026-04-24T19:42:18.288Z - Fatal: fetch failed
+2026-04-24T19:53:53.388Z - --- Upload Request Started (Telegram mode) ---
+2026-04-24T19:53:53.972Z - Starting busboy parse...
+2026-04-24T19:53:54.066Z - Body buffer size: 35366214B
+2026-04-24T19:53:54.124Z - File parsed: VID_XB4AGD.mp4, video/mp4, 35366035B
+2026-04-24T19:53:54.124Z - Uploading to Telegram: VID_XB4AGD.mp4 (33.73MB)
+2026-04-24T19:55:08.871Z - Telegram upload complete. Chunked=true, Chunks=2
+2026-04-24T19:55:09.083Z - Asset saved: id=c2f98973-5754-42e1-a2eb-159a7dd9dbd1

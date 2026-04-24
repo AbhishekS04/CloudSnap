@@ -34,17 +34,23 @@ export async function GET(req: Request) {
 
         // Map the asset records to match the expected legacy ImageRecord structure
         // so the frontend Gallery components still work without modification.
-        const mappedData = data.map((asset: any) => ({
-            ...asset,
-            // Inject fake extensions for components that expect it (mostly videos vs images)
-            original_ext: asset.original_name.split('.').pop() || 'jpg',
-            // Construct CDN URLs
-            original_url: `/api/cdn/${asset.id}`,
-            thumb_url: `/api/cdn/${asset.id}?w=200&fmt=webp`,
-            sm_url: `/api/cdn/${asset.id}?w=600&fmt=webp`,
-            md_url: `/api/cdn/${asset.id}?w=1200&fmt=webp`,
-            lg_url: `/api/cdn/${asset.id}?w=2000&fmt=webp`,
-        }));
+        const mappedData = data.map((asset: any) => {
+            const isVideo = (asset.mime_type as string || '').startsWith('video/');
+            const baseUrl = `/api/cdn/${asset.id}`;
+
+            // Videos must NOT have image transform params — sharp can't process video.
+            // Images get optimized variants with WebP conversion.
+            return {
+                ...asset,
+                original_ext: asset.original_name?.split('.').pop() || (isVideo ? 'mp4' : 'jpg'),
+                original_url: baseUrl,
+                thumb_url: isVideo ? baseUrl : `${baseUrl}?w=200&fmt=webp`,
+                sm_url:    isVideo ? baseUrl : `${baseUrl}?w=600&fmt=webp`,
+                md_url:    isVideo ? baseUrl : `${baseUrl}?w=1200&fmt=webp`,
+                lg_url:    isVideo ? baseUrl : `${baseUrl}?w=2000&fmt=webp`,
+            };
+        });
+
 
         return NextResponse.json(mappedData);
     } catch (error: any) {

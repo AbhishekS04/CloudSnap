@@ -10,9 +10,10 @@ import { parseDropEvent } from '@/lib/upload-utils';
 interface UploadZoneProps {
     onUploadComplete: (newImage: ImageRecord | UploadResponse) => void;
     folderId?: string | null;
+    onStartUpload?: () => void;
 }
 
-export function UploadZone({ onUploadComplete, folderId }: UploadZoneProps) {
+export function UploadZone({ onUploadComplete, folderId, onStartUpload }: UploadZoneProps) {
     const [isDragOver, setIsDragOver] = useState(false);
 
     const { uploadFile, uploadUrl, isUploading, progress, error } = useImageUpload({
@@ -50,9 +51,25 @@ export function UploadZone({ onUploadComplete, folderId }: UploadZoneProps) {
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (files && files.length > 0) {
+            onStartUpload?.();
             uploadFile(files[0], folderId);
         }
     };
+
+    const handleDropWithNotify = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const { files, url } = await parseDropEvent(e);
+        if (files.length > 0) {
+            onStartUpload?.();
+            uploadFile(files[0], folderId);
+            return;
+        }
+        if (url) {
+            onStartUpload?.();
+            uploadUrl(url, folderId);
+        }
+    }, [uploadFile, uploadUrl, folderId, onStartUpload]);
 
     return (
         <div
@@ -63,14 +80,14 @@ export function UploadZone({ onUploadComplete, folderId }: UploadZoneProps) {
             )}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
+            onDrop={handleDropWithNotify}
             onClick={() => document.getElementById('file-upload')?.click()}
         >
             <input
                 type="file"
                 id="file-upload"
                 className="hidden"
-                accept="image/jpeg,image/png,image/jpg,video/mp4,video/webm"
+                accept="image/*,video/*"
                 onChange={handleFileSelect}
             />
 
@@ -94,7 +111,7 @@ export function UploadZone({ onUploadComplete, folderId }: UploadZoneProps) {
                         {isUploading ? "Please wait, optimizing..." : isDragOver ? "Drop to Upload" : "Click to upload, or drag and drop files/URLs"}
                     </p>
                     <p className="text-xs text-zinc-500">
-                        JPG, PNG (Max 10MB), MP4, WebM (Unlimited)
+                        Any image or video — Images up to 50 MB · Videos up to 200 MB
                     </p>
                     {isUploading && (
                         <p className="text-[10px] text-zinc-600 font-mono">

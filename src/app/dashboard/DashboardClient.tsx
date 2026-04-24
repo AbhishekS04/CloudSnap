@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder, UploadResponse } from '@/lib/types';
-import { LayoutGrid, Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Loader2, Cloud, Menu } from 'lucide-react';
+import { Plus, UploadCloud, X, FolderPlus, ChevronRight, Home, Cloud, Menu, Minimize2 } from 'lucide-react';
 import { useUser } from "@clerk/nextjs";
 import { ClientUserButton } from "@/components/ClientUserButton";
 import { useImageUpload } from '@/hooks/useImageUpload';
@@ -15,6 +15,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { cn } from '@/lib/utils';
 import RefreshIcon from '@/components/icons/RefreshIcon';
 import { AnimatedIconHandle } from '@/components/icons/types';
+import { UploadFAB } from '@/components/UploadFAB';
 
 export default function DashboardClient() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
@@ -25,6 +26,8 @@ export default function DashboardClient() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [isUploadMinimized, setIsUploadMinimized] = useState(false);
+    const autoMinimizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { user } = useUser();
 
     // Storage refresh key
@@ -49,38 +52,46 @@ export default function DashboardClient() {
     const [newFolderName, setNewFolderName] = useState('');
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    const { uploadFile, uploadUrl, isUploading, progress } = useImageUpload({
+    const { uploadFile, uploadUrl, isUploading, progress, uploadedBytes, totalBytes } = useImageUpload({
         onUploadComplete: (data) => {
-            const response = data as UploadResponse & { avif: any };
-            const urlParts = response.original.url.split('/').pop()?.split('.') || ['image', 'jpg'];
-            const ext = urlParts.length > 1 ? urlParts.pop() : 'jpg';
-            const name = urlParts.join('.');
+            // API shape: { id, cdnUrl, urls: { original, thumb, sm, md, lg }, meta: { originalName, mimeType, width, height, originalSize } }
+            const response = data as any;
+            const cdnUrl: string = response.cdnUrl || `/api/cdn/${response.id}`;
+            const meta = response.meta || {};
+            const urls = response.urls || {};
+
+            const originalName: string = meta.originalName || 'asset';
+            const dotIdx = originalName.lastIndexOf('.');
+            const ext = dotIdx !== -1 ? originalName.slice(dotIdx + 1) : 'bin';
+            const name = dotIdx !== -1 ? originalName.slice(0, dotIdx) : originalName;
 
             const newImage: ImageRecord & { avif: any } = {
                 id: response.id,
                 created_at: new Date().toISOString(),
-                original_name: name,
-                original_ext: ext || 'jpg',
-                original_url: response.original.url,
-                mime_type: `image/${ext}`,
-                width: response.original.width,
-                height: response.original.height,
-                original_size: response.original.size,
-                thumb_url: response.optimized.urls.thumb,
-                sm_url: response.optimized.urls.sm,
-                md_url: response.optimized.urls.md,
-                lg_url: response.optimized.urls.lg,
-                thumb_size: response.optimized.sizes.thumb,
-                sm_size: response.optimized.sizes.sm,
-                md_size: response.optimized.sizes.md,
-                lg_size: response.optimized.sizes.lg,
+                original_name: originalName,
+                original_ext: ext,
+                original_url: cdnUrl,
+                mime_type: meta.mimeType || 'application/octet-stream',
+                width: meta.width || null,
+                height: meta.height || null,
+                original_size: meta.originalSize || 0,
+                thumb_url: urls.thumb || cdnUrl,
+                sm_url: urls.sm || cdnUrl,
+                md_url: urls.md || cdnUrl,
+                lg_url: urls.lg || cdnUrl,
+                thumb_size: 0,
+                sm_size: 0,
+                md_size: 0,
+                lg_size: 0,
                 optimized_format: 'webp',
-                avif: response.avif,
+                avif: null,
                 folder_id: currentFolder?.id || null
             };
 
             setImages(prev => [newImage, ...prev]);
             setShowUploadModal(false);
+            setIsUploadMinimized(false);
+            if (autoMinimizeTimerRef.current) clearTimeout(autoMinimizeTimerRef.current);
             // Refresh storage indicator
             setStorageRefreshKey(prev => prev + 1);
         }
@@ -273,7 +284,7 @@ export default function DashboardClient() {
                 }}
                 onSetFilter={setFilterType}
                 onCreateFolder={() => setShowFolderModal(true)}
-                onUploadClick={() => setShowUploadModal(true)}
+                onUploadClick={() => { setIsUploadMinimized(false); setShowUploadModal(true); }}
                 onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
                 storageRefreshKey={storageRefreshKey}
             />
@@ -401,23 +412,55 @@ export default function DashboardClient() {
                     />
                 )}
 
-                {showUploadModal && (
+                {showUploadModal && !isUploadMinimized && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-                        onClick={() => setShowUploadModal(false)}
+                        onClick={() => { if (!isUploading) setShowUploadModal(false); }}
                     >
                         <motion.div
                             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
                             onClick={(e) => e.stopPropagation()}
                             className="w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative"
                         >
-                            <button onClick={() => setShowUploadModal(false)} className="absolute top-4 right-4 p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors z-10"><X className="w-6 h-6" /></button>
+                            <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                                {isUploading && (
+                                    <button
+                                        onClick={() => setIsUploadMinimized(true)}
+                                        className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors"
+                                        title="Minimize — upload continues in background"
+                                    >
+                                        <Minimize2 className="w-5 h-5" />
+                                    </button>
+                                )}
+                                {!isUploading && (
+                                    <button onClick={() => { setShowUploadModal(false); setIsUploadMinimized(false); }} className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors">
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                )}
+                            </div>
                             <div className="p-8">
                                 <h3 className="text-xl font-bold mb-6 text-center text-white">Upload to {currentFolder ? currentFolder.name : 'Root'}</h3>
                                 <UploadZone
-                                    onUploadComplete={() => { fetchData(); setShowUploadModal(false); }}
+                                    onUploadComplete={() => {
+                                        // Cancel any pending auto-minimize timer so it can't
+                                        // silently set isUploadMinimized=true after close
+                                        if (autoMinimizeTimerRef.current) {
+                                            clearTimeout(autoMinimizeTimerRef.current);
+                                            autoMinimizeTimerRef.current = null;
+                                        }
+                                        fetchData();
+                                        setShowUploadModal(false);
+                                        setIsUploadMinimized(false);
+                                    }}
                                     folderId={currentFolder?.id}
+                                    onStartUpload={() => {
+                                        // Auto-minimize after 15s if still uploading
+                                        if (autoMinimizeTimerRef.current) clearTimeout(autoMinimizeTimerRef.current);
+                                        autoMinimizeTimerRef.current = setTimeout(() => {
+                                            setIsUploadMinimized(true);
+                                        }, 15000);
+                                    }}
                                 />
                             </div>
                         </motion.div>
@@ -435,23 +478,14 @@ export default function DashboardClient() {
                     </motion.div>
                 )}
 
-                {isUploading && !showUploadModal && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }}
-                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[70] bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md flex flex-col items-center gap-4"
-                    >
-                        <div className="flex items-center gap-3 w-full">
-                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center"><Loader2 className="w-5 h-5 text-indigo-400 animate-spin" /></div>
-                            <div className="flex-1">
-                                <h3 className="text-white font-medium">Uploading & Optimizing...</h3>
-                                <p className="text-xs text-zinc-400">Processing your assets with high quality</p>
-                            </div>
-                            <span className="text-sm font-mono text-indigo-400">{progress}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500 transition-all duration-300 ease-out" style={{ width: `${progress}%` }} />
-                        </div>
-                    </motion.div>
+                {/* Floating upload FAB — compact spinning button that pops up progress on click */}
+                {isUploading && (isUploadMinimized || !showUploadModal) && (
+                    <UploadFAB
+                        progress={progress}
+                        uploadedBytes={uploadedBytes}
+                        totalBytes={totalBytes}
+                        onExpand={() => { setIsUploadMinimized(false); setShowUploadModal(true); }}
+                    />
                 )}
             </AnimatePresence>
 
@@ -477,7 +511,7 @@ export default function DashboardClient() {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowUploadModal(true)}
+                        onClick={() => { setIsUploadMinimized(false); setShowUploadModal(true); }}
                         className="flex items-center justify-center w-14 h-14 bg-white text-black rounded-2xl shadow-2xl shadow-white/10"
                         title="Upload Assets"
                     >

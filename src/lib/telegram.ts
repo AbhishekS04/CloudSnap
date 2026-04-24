@@ -13,9 +13,9 @@ const CHAT_ID   = process.env.TELEGRAM_STORAGE_CHAT_ID!;
 // Telegram Bot API base URL
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// Telegram's hard limit is 50MB per file.
-// We use 39MB as our chunk size to stay safely under the limit.
-export const CHUNK_SIZE = 39 * 1024 * 1024; // 39 MB
+// Telegram's getFile API can only serve files ≤ 20MB.
+// We use 19MB chunks to stay safely under that hard limit.
+export const CHUNK_SIZE = 19 * 1024 * 1024; // 19 MB
 
 // ─────────────────────────────────────────────
 // Types
@@ -76,11 +76,15 @@ export async function downloadFromTelegram(fileId: string): Promise<Buffer> {
 // ─────────────────────────────────────────────
 
 /**
- * Downloads multiple chunks from Telegram in parallel and
+ * Downloads multiple chunks from Telegram sequentially and
  * concatenates them into a single Buffer in the correct order.
+ * Sequential (not parallel) to avoid Telegram rate limits on large files.
  */
 export async function downloadChunkedFromTelegram(fileIds: string[]): Promise<Buffer> {
-  const buffers = await Promise.all(fileIds.map(downloadFromTelegram));
+  const buffers: Buffer[] = [];
+  for (const fileId of fileIds) {
+    buffers.push(await downloadFromTelegram(fileId));
+  }
   return Buffer.concat(buffers);
 }
 
@@ -123,10 +127,30 @@ export async function uploadToTelegram(
     throw new Error(`Telegram API error: ${JSON.stringify(data)}`);
   }
 
-  const doc = data.result.document;
+  // Telegram auto-classifies files: MP4→video, GIF→animation, images→photo, etc.
+  // We must check all possible media fields to find the file_id.
+  const result = data.result;
+  const mediaObj =
+    result.document   ??  // generic file / most formats
+    result.video      ??  // MP4, MOV, MKV…
+    result.animation  ??  // GIF, WebM animations
+    result.audio      ??  // MP3, OGG audio
+    result.voice      ??
+    result.video_note ??
+    result.sticker    ??
+    (Array.isArray(result.photo)
+      ? result.photo[result.photo.length - 1]  // photo → array, take largest
+      : null);
+
+  if (!mediaObj || !mediaObj.file_id) {
+    // Log the full result for debugging
+    console.error('[Telegram] Unexpected result shape:', JSON.stringify(result));
+    throw new Error(`Telegram returned an unexpected result: no file_id found. Full result: ${JSON.stringify(result)}`);
+  }
+
   return {
-    fileId: doc.file_id,
-    fileSize: doc.file_size ?? buffer.length,
+    fileId: mediaObj.file_id,
+    fileSize: mediaObj.file_size ?? buffer.length,
   };
 }
 
