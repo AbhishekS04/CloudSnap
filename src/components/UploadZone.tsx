@@ -1,24 +1,19 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { Upload, X, FileImage, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileImage, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ImageRecord, UploadResponse } from '@/lib/types';
-import { useImageUpload } from '@/hooks/useImageUpload';
+import { useUpload } from '@/context/UploadContext';
 import { parseDropEvent } from '@/lib/upload-utils';
 
 interface UploadZoneProps {
-    onUploadComplete: (newImage: ImageRecord | UploadResponse) => void;
     folderId?: string | null;
-    onStartUpload?: () => void;
 }
 
-export function UploadZone({ onUploadComplete, folderId, onStartUpload }: UploadZoneProps) {
+export function UploadZone({ folderId }: UploadZoneProps) {
     const [isDragOver, setIsDragOver] = useState(false);
-
-    const { uploadFile, uploadUrl, isUploading, progress, error } = useImageUpload({
-        onUploadComplete
-    });
+    const { startUpload, uploadState } = useUpload();
+    const isUploading = uploadState.status === 'uploading';
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -30,46 +25,21 @@ export function UploadZone({ onUploadComplete, folderId, onStartUpload }: Upload
         setIsDragOver(false);
     }, []);
 
-    const handleDrop = useCallback(async (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragOver(false);
-
-        const { files, url } = await parseDropEvent(e);
-
-        if (files.length > 0) {
-            uploadFile(files[0], folderId);
-            return;
-        }
-
-        if (url) {
-            console.log('Detected Drop URL:', url);
-            uploadUrl(url, folderId);
-            return;
-        }
-    }, [uploadFile, uploadUrl, folderId]);
-
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (files && files.length > 0) {
-            onStartUpload?.();
-            uploadFile(files[0], folderId);
+            startUpload(files[0]);
         }
     };
 
-    const handleDropWithNotify = useCallback(async (e: React.DragEvent) => {
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
-        const { files, url } = await parseDropEvent(e);
+        const { files } = await parseDropEvent(e);
         if (files.length > 0) {
-            onStartUpload?.();
-            uploadFile(files[0], folderId);
-            return;
+            startUpload(files[0]);
         }
-        if (url) {
-            onStartUpload?.();
-            uploadUrl(url, folderId);
-        }
-    }, [uploadFile, uploadUrl, folderId, onStartUpload]);
+    }, [startUpload]);
 
     return (
         <div
@@ -80,7 +50,7 @@ export function UploadZone({ onUploadComplete, folderId, onStartUpload }: Upload
             )}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onDrop={handleDropWithNotify}
+            onDrop={handleDrop}
             onClick={() => document.getElementById('file-upload')?.click()}
         >
             <input
@@ -108,33 +78,17 @@ export function UploadZone({ onUploadComplete, folderId, onStartUpload }: Upload
                         "text-sm font-medium transition-colors",
                         isUploading ? "text-indigo-400 animate-pulse" : "text-zinc-300"
                     )}>
-                        {isUploading ? "Please wait, optimizing..." : isDragOver ? "Drop to Upload" : "Click to upload, or drag and drop files/URLs"}
+                        {isUploading ? "Starting background transfer..." : isDragOver ? "Drop to Upload" : "Click to upload, or drag and drop files"}
                     </p>
                     <p className="text-xs text-zinc-500">
-                        Any image or video — Images up to 50 MB · Videos up to 200 MB
+                        Images up to 50 MB · Videos up to 200 MB
                     </p>
                     {isUploading && (
                         <p className="text-[10px] text-zinc-600 font-mono">
-                            Do not close window
+                            Upload continues in background. You can close this modal.
                         </p>
                     )}
                 </div>
-
-                {isUploading && (
-                    <div className="w-full max-w-xs h-1 bg-zinc-800 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-indigo-500 transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                )}
-
-                {error && (
-                    <div className="flex items-center text-sm text-red-400 mt-2 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
-                        <AlertCircle className="w-4 h-4 mr-2" />
-                        {error}
-                    </div>
-                )}
             </div>
         </div>
     );

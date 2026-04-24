@@ -55,6 +55,10 @@ export const metadata: Metadata = {
   },
 };
 
+import { UploadProvider } from "@/context/UploadContext";
+import { UploadFAB } from "@/components/UploadFAB";
+import { Toaster } from "react-hot-toast";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -64,8 +68,12 @@ export default function RootLayout({
     <ClerkProvider appearance={{ baseTheme: dark }}>
       <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${playfair.variable}`}>
         <body className={`${outfit.className} bg-[#050505] text-zinc-100 antialiased`}>
-          <SWRegistration />
-          {children}
+          <UploadProvider>
+            <SWRegistration />
+            <Toaster position="top-right" />
+            {children}
+            <UploadFAB />
+          </UploadProvider>
         </body>
       </html>
     </ClerkProvider>
