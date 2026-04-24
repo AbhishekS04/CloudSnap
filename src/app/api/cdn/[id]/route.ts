@@ -103,7 +103,7 @@ export async function GET(
 
     const baseHeaders: Record<string, string> = {
       'Content-Disposition':         `inline; filename="${safeFilename}"`,
-      'Cache-Control':               'public, s-maxage=31536000, max-age=86400, immutable',
+      'Cache-Control':               'public, s-maxage=31536000, stale-while-revalidate=59, immutable',
       'Access-Control-Allow-Origin': '*',
       'X-CloudSnap-Asset-Id':        id,
       'X-CloudSnap-Chunked':         String(asset.is_chunked),
