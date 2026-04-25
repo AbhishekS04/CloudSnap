@@ -113,7 +113,23 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   // ── Main Upload Function ─────────────────────────────────────────────────
 
   const startUpload = useCallback(async (file: File, folderId?: string | null) => {
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    if (!file || file.size === 0) {
+      toast.error('Cannot upload an empty file');
+      return;
+    }
+
+    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+    const mimeType = file.type || 'application/octet-stream';
+
+    setUploadState({
+      fileName: file.name,
+      progress: 0,
+      status:   'uploading',
+      totalChunks,
+      currentChunk: 1,
+      startTime: Date.now(),
+      speed: 0,
+    });
 
     // Step 1: Create a new upload session in Supabase
     let sessionId: string | null = null;
@@ -124,7 +140,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         body:    JSON.stringify({
           fileName:    file.name,
           fileSize:    file.size,
-          mimeType:    file.type,
+          mimeType:    mimeType,
           totalChunks,
           folderId:    folderId || null,
         }),
@@ -229,23 +245,28 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Step 4: Finalize — save metadata to Supabase
+      const finalizePayload = {
+        name:            file.name,
+        mimeType:        file.type,
+        size:            file.size,
+        telegramFileIds,
+        isChunked:       totalChunks > 1,
+        folderId:        folderId || null,
+      };
+
+      console.log('[Upload] Finalizing with payload:', finalizePayload);
+
       const finalizeRes = await fetch('/api/assets', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          name:            file.name,
-          mimeType:        file.type,
-          size:            file.size,
-          telegramFileIds,
-          isChunked:       totalChunks > 1,
-          folderId:        folderId || null,
-        }),
+        body:    JSON.stringify(finalizePayload),
       });
 
       if (!finalizeRes.ok) {
         const err = await finalizeRes.json().catch(() => ({}));
         throw new Error(err.error || 'Finalization failed');
       }
+      const finalizeData = await finalizeRes.json();
 
       // Step 5: Mark session complete & clear sessionStorage
       if (sessionId) {
@@ -260,8 +281,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       setUploadState(prev => ({ ...prev, status: 'completed', progress: 100 }));
       toast.success('Upload complete!');
 
-      // Notify dashboard to refresh
-      window.dispatchEvent(new Event('asset-uploaded'));
+      // Notify dashboard to refresh instantly with new data
+      window.dispatchEvent(new CustomEvent('asset-uploaded', { 
+        detail: { asset: finalizeData.asset } 
+      }));
 
     } catch (err: any) {
       console.error('Upload error:', err);

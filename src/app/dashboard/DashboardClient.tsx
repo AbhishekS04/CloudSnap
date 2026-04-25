@@ -20,7 +20,7 @@ export default function DashboardClient() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
     const [allFolders, setAllFolders] = useState<Folder[]>([]);
     const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
-    const [filterType, setFilterType] = useState<'all' | 'photos' | 'videos'>('all');
+    const [filterType, setFilterType] = useState<'all' | 'photos' | 'videos' | 'documents'>('all');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
@@ -79,9 +79,24 @@ export default function DashboardClient() {
     useEffect(() => {
         fetchData();
 
-        // Listen for global upload completions to refresh the list
-        const handleGlobalRefresh = () => fetchData();
-        window.addEventListener('asset-uploaded', handleGlobalRefresh);
+        // Listen for global upload completions to update the list in real-time
+        const handleGlobalRefresh = (e: any) => {
+            const newAsset = e.detail?.asset;
+            if (newAsset) {
+                // If we're in the same folder as the new asset (or in 'All Assets')
+                if (!currentFolder?.id || newAsset.folder_id === currentFolder.id) {
+                    setImages(prev => {
+                        // Prevent duplicates if auto-refresh already caught it
+                        if (prev.some(img => img.id === newAsset.id)) return prev;
+                        return [newAsset, ...prev];
+                    });
+                }
+                setStorageRefreshKey(prev => prev + 1);
+            } else {
+                fetchData();
+            }
+        };
+        window.addEventListener('asset-uploaded', handleGlobalRefresh as EventListener);
 
         // Auto-refresh every 30 seconds
         const interval = setInterval(() => {
@@ -162,12 +177,87 @@ export default function DashboardClient() {
     // Drag counter for robust detection
     const dragCounter = useRef(0);
 
+    const handleDragOver = useCallback((e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'copy';
+        }
+        if (e.dataTransfer?.types && e.dataTransfer.types.length > 0) {
+            setIsGlobalDragOver(true);
+        }
+    }, []);
+
+    const handleWindowDrop = useCallback(async (e: DragEvent) => {
+        console.log('[Global Drop] Drop event fired on window');
+        e.preventDefault();
+        e.stopPropagation();
+        setIsGlobalDragOver(false);
+        dragCounter.current = 0;
+
+        // CRITICAL: Access files SYNCHRONOUSLY before any await
+        const droppedFiles = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+        const { url } = await parseDropEvent(e as unknown as React.DragEvent);
+        
+        // Combine files from parseDropEvent and synchronous check
+        const files = droppedFiles.length > 0 ? droppedFiles : [];
+        
+        console.log('[Global Drop] Detected:', { filesCount: files.length, url });
+
+        // Robust media detection: check MIME type OR extension
+        const isMedia = (f: File) => {
+            const type = f.type.toLowerCase();
+            const name = f.name.toLowerCase();
+            const mediaExtensions = [
+                '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', 
+                '.mp4', '.webm', '.mov', '.heic', '.heif', '.bmp', '.tiff',
+                '.pdf'
+            ];
+            
+            return type.startsWith('image/') || 
+                   type.startsWith('video/') || 
+                   type === 'application/pdf' ||
+                   mediaExtensions.some(ext => name.endsWith(ext));
+        };
+
+        const validFiles = files.filter(f => {
+            if (!f) return false;
+            const ok = isMedia(f);
+            console.log(`[Global Drop] Filtering: "${f.name}" | Type: "${f.type}" | Size: ${f.size} bytes | Result: ${ok ? 'KEEP' : 'REJECT'}`);
+            return ok;
+        });
+        
+        console.log('[Global Drop] Final valid files:', validFiles.length);
+
+        // 1. Handle Real Files
+        if (validFiles.length > 0) {
+            for (const file of validFiles) startUpload(file);
+        } 
+        // 2. Handle URL Drops
+        else if (url) {
+            try {
+                const res = await fetch(url);
+                const blob = await res.blob();
+                if (blob.size === 0) return;
+
+                const fileName = url.split('/').pop()?.split('?')[0] || 'dropped-asset';
+                const file = new File([blob], fileName, { type: blob.type });
+                
+                if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type === 'application/pdf') {
+                    startUpload(file);
+                }
+            } catch (err) {
+                console.error('Failed to fetch dropped URL', err);
+            }
+        }
+    }, [startUpload]);
+
     useEffect(() => {
         const handleDragEnter = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            dragCounter.current += 1;
-            if (e.dataTransfer?.types && e.dataTransfer.types.includes('Files')) {
+            dragCounter.current++;
+            if (e.dataTransfer?.types && e.dataTransfer.types.length > 0) {
                 setIsGlobalDragOver(true);
             }
         };
@@ -175,28 +265,9 @@ export default function DashboardClient() {
         const handleDragLeave = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            dragCounter.current -= 1;
-            if (dragCounter.current <= 0) {
+            dragCounter.current--;
+            if (dragCounter.current === 0) {
                 setIsGlobalDragOver(false);
-                dragCounter.current = 0;
-            }
-        };
-
-        const handleDragOver = (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-        };
-
-        const handleWindowDrop = async (e: DragEvent) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsGlobalDragOver(false);
-            dragCounter.current = 0;
-
-            const { files } = await parseDropEvent(e as unknown as React.DragEvent);
-            if (files.length > 0) {
-                const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
-                for (const file of mediaFiles) startUpload(file);
             }
         };
 
@@ -211,7 +282,7 @@ export default function DashboardClient() {
             window.removeEventListener('dragover', handleDragOver);
             window.removeEventListener('drop', handleWindowDrop);
         };
-    }, [startUpload]);
+    }, [handleDragOver, handleWindowDrop]);
 
     return (
         <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-indigo-500/30">
@@ -285,7 +356,10 @@ export default function DashboardClient() {
                 <main className="flex-1 p-6 md:p-8 lg:p-10 w-full">
                     <div className="mb-12 flex flex-col gap-2">
                         <h2 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-white leading-tight italic-display">
-                            {filterType === 'photos' ? 'Photos' : filterType === 'videos' ? 'Videos' : currentFolder ? currentFolder.name : 'Assets'}
+                            {filterType === 'photos' ? 'Photos' : 
+                             filterType === 'videos' ? 'Videos' : 
+                             filterType === 'documents' ? 'Documents' :
+                             currentFolder ? currentFolder.name : 'Assets'}
                         </h2>
                         <p className="text-zinc-500 font-medium font-sans opacity-60">
                             {images.length} {images.length === 1 ? 'asset' : 'assets'} in this view
@@ -392,7 +466,14 @@ export default function DashboardClient() {
                 {isGlobalDragOver && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[60] bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center border-4 border-indigo-500 border-dashed m-4 rounded-3xl pointer-events-none transition-all duration-300"
+                        className="fixed inset-0 z-[60] bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center border-4 border-indigo-500 border-dashed m-4 rounded-3xl transition-all duration-300"
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
+                        onDrop={(e) => {
+                            handleWindowDrop(e.nativeEvent);
+                        }}
                     >
                         <Cloud className="w-24 h-24 text-indigo-500 mb-6 animate-pulse" />
                         <h2 className="text-3xl font-bold text-white">Drop to Upload</h2>

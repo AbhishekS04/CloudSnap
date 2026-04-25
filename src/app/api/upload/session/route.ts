@@ -28,8 +28,14 @@ export async function POST(req: NextRequest) {
 
         const { fileName, fileSize, mimeType, totalChunks, folderId } = await req.json();
 
-        if (!fileName || !fileSize || !mimeType || !totalChunks) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        // Log for debugging
+        console.log('[Session] Request:', { fileName, fileSize, mimeType, totalChunks, folderId });
+
+        if (!fileName || totalChunks === undefined) {
+            return NextResponse.json({ 
+                error: 'Missing required fields', 
+                details: { fileName: !fileName, totalChunks: totalChunks === undefined } 
+            }, { status: 400 });
         }
 
         const sessionId = uuidv4();

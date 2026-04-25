@@ -36,9 +36,38 @@ export function UploadZone({ folderId }: UploadZoneProps) {
     const handleDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
-        const { files } = await parseDropEvent(e);
-        if (files.length > 0) {
-            startUpload(files[0], folderId);
+        const { files, url } = await parseDropEvent(e);
+        
+        const isMedia = (f: File) => {
+            const type = f.type.toLowerCase();
+            const name = f.name.toLowerCase();
+            const mediaExtensions = [
+                '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', 
+                '.mp4', '.webm', '.mov', '.heic', '.heif', '.bmp', '.tiff',
+                '.pdf'
+            ];
+            return type.startsWith('image/') || type.startsWith('video/') || type === 'application/pdf' || mediaExtensions.some(ext => name.endsWith(ext));
+        };
+
+        const validFiles = files.filter(f => f.size > 0 && isMedia(f));
+        
+        if (validFiles.length > 0) {
+            startUpload(validFiles[0], folderId);
+        } else if (url) {
+            try {
+                const res = await fetch(url);
+                const blob = await res.blob();
+                if (blob.size === 0) return;
+
+                const fileName = url.split('/').pop()?.split('?')[0] || 'dropped-asset';
+                const file = new File([blob], fileName, { type: blob.type });
+                
+                if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type === 'application/pdf') {
+                    startUpload(file, folderId);
+                }
+            } catch (err) {
+                console.error('Failed to fetch dropped URL', err);
+            }
         }
     }, [startUpload, folderId]);
 
@@ -63,7 +92,7 @@ export function UploadZone({ folderId }: UploadZoneProps) {
                 type="file"
                 id="file-upload"
                 className="hidden"
-                accept="image/*,video/*"
+                accept="image/*,video/*,application/pdf"
                 onChange={handleFileSelect}
             />
 

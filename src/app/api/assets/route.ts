@@ -21,8 +21,14 @@ export async function POST(req: NextRequest) {
             height 
         } = body;
 
-        if (!name || !telegramFileIds || telegramFileIds.length === 0) {
-            return NextResponse.json({ error: 'Missing required metadata' }, { status: 400 });
+        // Log for debugging
+        console.log('[Assets API] Finalizing:', { name, mimeType, size, telegramFileIdsCount: telegramFileIds?.length, isChunked, folderId });
+
+        if (!name) {
+            return NextResponse.json({ error: 'Missing required metadata: name is required' }, { status: 400 });
+        }
+        if (!telegramFileIds || !Array.isArray(telegramFileIds) || telegramFileIds.length === 0) {
+            return NextResponse.json({ error: 'Missing required metadata: telegramFileIds is required and must be a non-empty array' }, { status: 400 });
         }
 
         const id = uuidv4();
@@ -49,10 +55,34 @@ export async function POST(req: NextRequest) {
             throw new Error(`Failed to save metadata: ${dbError.message}`);
         }
 
+        // Return the full mapped record so frontend can update instantly without re-fetching
+        const isVideo = (mimeType as string || '').startsWith('video/');
+        const baseUrl = `/api/cdn/${id}`;
+        
+        const mappedAsset = {
+            id,
+            original_name: name,
+            mime_type: mimeType,
+            width: width || null,
+            height: height || null,
+            original_size: size,
+            telegram_file_ids: telegramFileIds,
+            telegram_chat_id: chatId,
+            is_chunked: isChunked,
+            chunk_count: telegramFileIds.length,
+            folder_id: (folderId && folderId !== 'null') ? folderId : null,
+            created_at: new Date().toISOString(),
+            original_ext: name?.split('.').pop() || (isVideo ? 'mp4' : 'jpg'),
+            original_url: baseUrl,
+            thumb_url: isVideo ? baseUrl : `${baseUrl}?w=200&fmt=webp`,
+            sm_url:    isVideo ? baseUrl : `${baseUrl}?w=600&fmt=webp`,
+            md_url:    isVideo ? baseUrl : `${baseUrl}?w=1200&fmt=webp`,
+            lg_url:    isVideo ? baseUrl : `${baseUrl}?w=2000&fmt=webp`,
+        };
+
         return NextResponse.json({ 
-            id, 
             success: true,
-            cdnUrl: `/api/cdn/${id}`
+            asset: mappedAsset
         });
 
     } catch (error: any) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { Copy, Trash2, Check, ExternalLink, Download } from 'lucide-react';
+import { Copy, Trash2, Check, ExternalLink, Download, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 
 interface ImageGalleryProps {
     images: (ImageRecord & { avif?: any })[];
-    filterType?: 'all' | 'photos' | 'videos';
+    filterType?: 'all' | 'photos' | 'videos' | 'documents';
     folders?: Folder[];
     onDelete: (id: string) => void;
     onNavigate?: (folder: Folder) => void;
@@ -22,6 +22,7 @@ export function ImageGallery({ images, filterType = 'all', folders = [], onDelet
     const displayedImages = images.filter(img => {
         if (filterType === 'photos') return img.mime_type.startsWith('image/');
         if (filterType === 'videos') return img.mime_type.startsWith('video/');
+        if (filterType === 'documents') return img.mime_type === 'application/pdf';
         return true;
     });
 
@@ -50,6 +51,7 @@ export function ImageGallery({ images, filterType = 'all', folders = [], onDelet
 
 function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, onDelete: (id: string) => void }) {
     const isVideo = image.mime_type?.startsWith('video/');
+    const isPDF = image.mime_type === 'application/pdf';
     const [format, setFormat] = useState<'avif' | 'webp' | 'original' | 'compressed'>('original');
     const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
     const [isHovered, setIsHovered] = useState(false);
@@ -155,12 +157,17 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 30, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
+            transition={{ 
+                type: "spring", 
+                damping: 25, 
+                stiffness: 300,
+                layout: { duration: 0.4, ease: "easeOut" }
+            }}
             className={cn(
-                "group relative bg-zinc-900 border border-zinc-800/50 rounded-3xl overflow-hidden transition-all duration-500 hover:ring-2 hover:ring-white/10 hover:shadow-2xl",
+                "group relative bg-zinc-900 border border-zinc-800/50 rounded-3xl overflow-hidden hover:ring-2 hover:ring-white/10 hover:shadow-2xl",
                 isHovered && "scale-[1.01]"
             )}
             onMouseEnter={() => setIsHovered(true)}
@@ -182,6 +189,14 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                         className="w-full h-full object-cover"
                         isMuted={!isHovered}
                     />
+                ) : isPDF ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 p-8">
+                        <div className="relative group/pdf">
+                            <FileText className="w-20 h-20 text-red-500/80 group-hover:text-red-500 transition-colors duration-500" />
+                            <div className="absolute -bottom-2 -right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow-xl">PDF</div>
+                        </div>
+                        <span className="mt-6 text-zinc-500 text-xs font-medium text-center line-clamp-2 px-4">{image.original_name}</span>
+                    </div>
                 ) : (
                     <a
                         href={getUrl()}
@@ -208,11 +223,15 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                 {/* Glassy Overlay for Meta Data - Always visible but subtle */}
                 <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
                     <div className="px-3 py-1.5 bg-zinc-950/60 backdrop-blur-md rounded-full border border-white/5 flex items-center gap-2 pointer-events-none">
-                        <span className="text-[10px] font-bold text-zinc-400 tracking-wider uppercase">{image.original_ext}</span>
-                        <div className="w-px h-3 bg-white/10" />
-                        <span className="text-[10px] font-bold text-zinc-200 tracking-widest uppercase">
-                            {format === 'original' ? 'RAW' : format}
-                        </span>
+                        <span className="text-[10px] font-bold text-zinc-400 tracking-wider uppercase">{image.original_ext || (isPDF ? 'PDF' : '')}</span>
+                        {!isPDF && (
+                            <>
+                                <div className="w-px h-3 bg-white/10" />
+                                <span className="text-[10px] font-bold text-zinc-200 tracking-widest uppercase">
+                                    {format === 'original' ? 'RAW' : format}
+                                </span>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-300">
@@ -247,9 +266,11 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                                     {truncateFileName(image.original_name, 22)}
                                 </span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
-                                        {image.width}x{image.height}
-                                    </span>
+                                    {!isPDF && (
+                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                                            {image.width}x{image.height}
+                                        </span>
+                                    )}
                                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
                                         {getSizeDisplay()}
                                     </span>
@@ -257,34 +278,36 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                             </div>
 
                             {/* Format Selector Pills - Dedicated Row */}
-                            <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
-                                {isVideo ? (
-                                    <>
-                                        <button
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
-                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'original' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
-                                        >
-                                            RAW
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
-                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
-                                        >
-                                            COMP
-                                        </button>
-                                    </>
-                                ) : (
-                                    ['original', 'webp', 'avif'].map((fmt) => (
-                                        <button
-                                            key={fmt}
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
-                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider uppercase transition-all whitespace-nowrap ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-300 hover:text-white'}`}
-                                        >
-                                            {fmt === 'original' ? 'RAW' : fmt}
-                                        </button>
-                                    ))
-                                )}
-                            </div>
+                            {!isPDF && (
+                                <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
+                                    {isVideo ? (
+                                        <>
+                                            <button
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
+                                                className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'original' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                            >
+                                                RAW
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
+                                                className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                            >
+                                                COMP
+                                            </button>
+                                        </>
+                                    ) : (
+                                        ['original', 'webp', 'avif'].map((fmt) => (
+                                            <button
+                                                key={fmt}
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
+                                                className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider uppercase transition-all whitespace-nowrap ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-300 hover:text-white'}`}
+                                            >
+                                                {fmt === 'original' ? 'RAW' : fmt}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Animated Action Button */}

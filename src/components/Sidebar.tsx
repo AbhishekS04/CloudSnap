@@ -13,7 +13,8 @@ import {
     ChevronRight,
     Search,
     Cloud,
-    Trash2
+    Trash2,
+    FileText
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Folder } from "@/lib/types";
@@ -24,9 +25,9 @@ import { StorageIndicator } from "./StorageIndicator";
 interface SidebarProps {
     folders: Folder[];
     currentFolder: Folder | null;
-    filterType: 'all' | 'photos' | 'videos';
+    filterType: 'all' | 'photos' | 'videos' | 'documents';
     onNavigate: (folder: Folder | null) => void;
-    onSetFilter: (type: 'all' | 'photos' | 'videos') => void;
+    onSetFilter: (type: 'all' | 'photos' | 'videos' | 'documents') => void;
     onCreateFolder: () => void;
     onUploadClick: () => void;
     onDeleteFolder?: (folder: Folder) => void;
@@ -118,6 +119,16 @@ export function Sidebar({
                                 onClick={() => {
                                     onNavigate(null);
                                     onSetFilter('videos');
+                                    onClose?.();
+                                }}
+                            />
+                            <NavItem
+                                icon={<FileText className="w-4 h-4" />}
+                                label="Documents"
+                                active={currentFolder === null && filterType === 'documents'}
+                                onClick={() => {
+                                    onNavigate(null);
+                                    onSetFilter('documents');
                                     onClose?.();
                                 }}
                             />

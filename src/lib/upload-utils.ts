@@ -3,14 +3,32 @@ export async function parseDropEvent(e: React.DragEvent): Promise<{ files: File[
     e.preventDefault();
 
     // 1. Check for Files
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        return { files: Array.from(e.dataTransfer.files), url: null };
+    let files: File[] = [];
+    if (e.dataTransfer.items) {
+        for (let i = 0; i < e.dataTransfer.items.length; i++) {
+            if (e.dataTransfer.items[i].kind === 'file') {
+                const file = e.dataTransfer.items[i].getAsFile();
+                if (file) files.push(file);
+            }
+        }
+    } else if (e.dataTransfer.files) {
+        files = Array.from(e.dataTransfer.files);
+    }
+
+    if (files.length > 0) {
+        return { files, url: null };
     }
 
     // 2. Check for URL/HTML drop
+    const types = e.dataTransfer.types;
+    console.log('[Drop Debug] Available types:', Array.from(types));
+    
     const html = e.dataTransfer.getData('text/html');
     const uriList = e.dataTransfer.getData('text/uri-list');
     const plainText = e.dataTransfer.getData('text/plain');
+    
+    console.log('[Drop Debug] uri-list content:', uriList);
+    console.log('[Drop Debug] plainText content:', plainText);
 
     let urlToUpload = uriList || plainText;
 
