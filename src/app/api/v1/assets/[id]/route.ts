@@ -6,19 +6,25 @@ import { requireApiKey } from '@/lib/api-auth';
  * GET /api/v1/assets/[id]
  * Returns detailed metadata for a single asset.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        await requireApiKey(req);
-        const { id } = params;
+        const keyData = await requireApiKey(req);
+        const { id } = await params;
 
-        const { data, error } = await supabaseAdmin
+        let query = supabaseAdmin
             .from('assets')
             .select('*')
-            .eq('id', id)
-            .single();
+            .eq('id', id);
+
+        // Enforce folder scope if API key is restricted
+        if (keyData.folder_id) {
+            query = query.eq('folder_id', keyData.folder_id);
+        }
+
+        const { data, error } = await query.single();
 
         if (error || !data) {
-            return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Asset not found or access denied' }, { status: 404 });
         }
 
         const origin = req.nextUrl.origin;

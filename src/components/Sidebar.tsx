@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
     LayoutGrid,
@@ -11,6 +12,7 @@ import {
     FolderPlus,
     LogOut,
     ChevronRight,
+    ChevronDown,
     Search,
     Cloud,
     Trash2,
@@ -57,6 +59,18 @@ export function Sidebar({
     view
 }: SidebarProps) {
     const { user } = useUser();
+    
+    // Lock body scroll when mobile sidebar is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [isOpen]);
 
     const sidebarContent = (
         <div className="flex flex-col h-full">
@@ -143,18 +157,6 @@ export function Sidebar({
                         </div>
                     </div>
 
-                    {/* Developer Section */}
-                    <div>
-                        <p className="px-4 text-[12px] text-zinc-500 italic-display tracking-wider mb-2 opacity-70">Tools</p>
-                        <div className="space-y-1">
-                            <NavItem
-                                icon={<Cpu className="w-4 h-4" />}
-                                label="Developer Hub"
-                                active={view === 'developer'}
-                                onClick={() => { onSetView('developer'); onClose?.(); }}
-                            />
-                        </div>
-                    </div>
 
                     {/* Folders Section */}
                     <div>
@@ -173,6 +175,16 @@ export function Sidebar({
                         </div>
                     </div>
                 </nav>
+            </div>
+
+            {/* Developer Section */}
+            <div className="px-4 mb-4">
+                <NavItem
+                    icon={<Cpu className="w-4 h-4" />}
+                    label="Developer Hub"
+                    active={view === 'developer'}
+                    onClick={() => { onSetView('developer'); onClose?.(); }}
+                />
             </div>
 
             {/* Storage Indicator */}
@@ -254,6 +266,34 @@ function FolderTree({
     onNavigate: (folder: Folder) => void,
     onDeleteFolder?: (folder: Folder) => void
 }) {
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+    // Auto-expand parents of the current folder
+    useEffect(() => {
+        if (currentFolderId) {
+            const parents = new Set<string>();
+            let curr = folders.find(f => f.id === currentFolderId);
+            while (curr && curr.parent_id) {
+                const pid: string = curr.parent_id;
+                parents.add(pid);
+                curr = folders.find(f => f.id === pid);
+            }
+            if (parents.size > 0) {
+                setExpandedIds(prev => new Set([...prev, ...parents]));
+            }
+        }
+    }, [currentFolderId, folders]);
+
+    const toggleExpand = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
     const children = folders.filter(f => f.parent_id === parentId);
 
     if (children.length === 0 && level === 0) {
@@ -261,39 +301,76 @@ function FolderTree({
     }
 
     return (
-        <div className="space-y-1">
-            {children.map(folder => (
-                <div key={folder.id}>
-                    <div style={{ paddingLeft: `${level * 12}px` }}>
-                        <NavItem
-                            icon={<FolderIcon className={cn("w-4 h-4", level > 0 && "text-zinc-500 w-3.5 h-3.5")} />}
-                            label={folder.name}
-                            active={currentFolderId === folder.id}
-                            onClick={() => onNavigate(folder)}
-                            onDelete={onDeleteFolder ? () => onDeleteFolder(folder) : undefined}
-                        />
+        <div className="space-y-0.5">
+            {children.map(folder => {
+                const hasChildren = folders.some(f => f.parent_id === folder.id);
+                const isExpanded = expandedIds.has(folder.id);
+
+                return (
+                    <div key={folder.id} className="relative">
+                        {/* Connecting Line for nested folders */}
+                        {level > 0 && (
+                            <div 
+                                className="absolute left-[-10px] top-0 bottom-0 w-[1px] bg-zinc-800"
+                                style={{ left: `${-10}px` }}
+                            />
+                        )}
+                        
+                        <div style={{ paddingLeft: `${level * 12}px` }}>
+                            <NavItem
+                                icon={<FolderIcon className={cn("w-4 h-4", level > 0 && "text-zinc-500 w-3.5 h-3.5")} />}
+                                label={folder.name}
+                                active={currentFolderId === folder.id}
+                                onClick={() => onNavigate(folder)}
+                                onDelete={onDeleteFolder ? () => onDeleteFolder(folder) : undefined}
+                                accessory={hasChildren ? (
+                                    <button 
+                                        onClick={(e) => toggleExpand(folder.id, e)}
+                                        className="p-1 hover:bg-white/5 rounded-md transition-colors"
+                                    >
+                                        {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                    </button>
+                                ) : undefined}
+                            />
+                        </div>
+
+                        <AnimatePresence>
+                            {isExpanded && hasChildren && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="ml-2 border-l border-zinc-800/50">
+                                        <FolderTree
+                                            folders={folders}
+                                            parentId={folder.id}
+                                            level={level + 1}
+                                            currentFolderId={currentFolderId}
+                                            onNavigate={onNavigate}
+                                            onDeleteFolder={onDeleteFolder}
+                                        />
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                    <FolderTree
-                        folders={folders}
-                        parentId={folder.id}
-                        level={level + 1}
-                        currentFolderId={currentFolderId}
-                        onNavigate={onNavigate}
-                        onDeleteFolder={onDeleteFolder}
-                    />
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }
 
-function NavItem({ icon, label, active, onClick, onDelete, count }: {
+function NavItem({ icon, label, active, onClick, onDelete, count, accessory }: {
     icon: React.ReactNode,
     label: string,
     active?: boolean,
     onClick?: () => void,
     onDelete?: () => void,
-    count?: number
+    count?: number,
+    accessory?: React.ReactNode
 }) {
     return (
         <div className="relative group/nav">
@@ -308,17 +385,18 @@ function NavItem({ icon, label, active, onClick, onDelete, count }: {
                     }
                 }}
                 className={cn(
-                    "w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
+                    "w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium transition-all cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                     active
-                        ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                        : "text-zinc-400 hover:text-white hover:bg-zinc-800/50 border border-transparent"
+                        ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_-5px_rgba(99,102,241,0.2)]"
+                        : "text-zinc-400 hover:text-white hover:bg-zinc-800/40 border border-transparent"
                 )}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                    {accessory}
                     <span className={cn("transition-colors", active ? "text-indigo-400" : "text-zinc-500 group-hover:text-zinc-300")}>
                         {icon}
                     </span>
-                    <span className="truncate max-w-[140px]">{label}</span>
+                    <span className="truncate max-w-[120px]">{label}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     {count !== undefined && (

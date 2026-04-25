@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         const user = await currentUser();
         if (!user) throw new Error('User not found');
 
-        const { name } = await req.json();
+        const { name, folder_id } = await req.json();
         if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
 
         // Generate a cryptographically secure API Key
@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
                 name,
                 key_value: keyValue,
                 user_id: user.id,
+                folder_id: folder_id || null,
                 is_active: true
             })
             .select()

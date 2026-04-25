@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Share2, ExternalLink, Cloud, Check, Copy, Clock, Box, Zap } from 'lucide-react';
+import { Download, Share2, ExternalLink, Cloud, Check, Copy, Clock, Box, Zap, FileText, Archive, File } from 'lucide-react';
 import { useState } from 'react';
 import { formatBytes } from '@/lib/utils';
 import Link from 'next/link';
@@ -14,6 +14,8 @@ export function SharePageClient({ asset }: SharePageClientProps) {
     const [copied, setCopied] = useState(false);
     const isVideo = asset.mime_type.startsWith('video/');
     const isImage = asset.mime_type.startsWith('image/');
+    const isPDF = asset.mime_type === 'application/pdf';
+    const isArchive = asset.mime_type?.includes('zip') || asset.mime_type?.includes('tar') || asset.mime_type?.includes('rar');
     const cdnUrl = `/api/cdn/${asset.id}`;
     
     const handleCopy = () => {
@@ -77,9 +79,21 @@ export function SharePageClient({ asset }: SharePageClientProps) {
                                     loop
                                 />
                             )}
-                            {!isImage && !isVideo && (
-                                <div className="w-full aspect-video flex flex-col items-center justify-center gap-4 bg-zinc-900 p-12 text-center">
-                                    <Box size={64} className="text-zinc-700" />
+                            {isPDF && (
+                                <div className="w-full aspect-video flex flex-col items-center justify-center gap-6 bg-zinc-900 p-12 text-center">
+                                    <FileText size={80} className="text-red-500/80" />
+                                    <p className="text-zinc-500 font-bold uppercase tracking-widest">Document PDF</p>
+                                </div>
+                            )}
+                            {isArchive && (
+                                <div className="w-full aspect-video flex flex-col items-center justify-center gap-6 bg-zinc-900 p-12 text-center">
+                                    <Archive size={80} className="text-amber-500/80" />
+                                    <p className="text-zinc-500 font-bold uppercase tracking-widest">Archive ZIP/TAR</p>
+                                </div>
+                            )}
+                            {!isImage && !isVideo && !isPDF && !isArchive && (
+                                <div className="w-full aspect-video flex flex-col items-center justify-center gap-6 bg-zinc-900 p-12 text-center">
+                                    <File size={80} className="text-zinc-700" />
                                     <p className="text-zinc-500 font-bold uppercase tracking-widest">{asset.mime_type}</p>
                                 </div>
                             )}

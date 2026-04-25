@@ -8,15 +8,22 @@ import { requireApiKey } from '@/lib/api-auth';
  */
 export async function GET(req: NextRequest) {
     try {
-        await requireApiKey(req);
+        const keyData = await requireApiKey(req);
         
         const { searchParams } = new URL(req.url);
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
 
-        const { data, error, count } = await supabaseAdmin
+        let query = supabaseAdmin
             .from('assets')
-            .select('*', { count: 'exact' })
+            .select('*', { count: 'exact' });
+
+        // Enforce folder scope if API key is restricted
+        if (keyData.folder_id) {
+            query = query.eq('folder_id', keyData.folder_id);
+        }
+
+        const { data, error, count } = await query
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
@@ -30,6 +37,7 @@ export async function GET(req: NextRequest) {
             name: asset.original_name,
             mime_type: asset.mime_type,
             size: asset.original_size,
+            folder_id: asset.folder_id,
             created_at: asset.created_at,
             links: {
                 share: `${origin}/share/${asset.id}`,

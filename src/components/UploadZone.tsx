@@ -38,18 +38,7 @@ export function UploadZone({ folderId }: UploadZoneProps) {
         setIsDragOver(false);
         const { files, url } = await parseDropEvent(e);
         
-        const isMedia = (f: File) => {
-            const type = f.type.toLowerCase();
-            const name = f.name.toLowerCase();
-            const mediaExtensions = [
-                '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', 
-                '.mp4', '.webm', '.mov', '.heic', '.heif', '.bmp', '.tiff',
-                '.pdf'
-            ];
-            return type.startsWith('image/') || type.startsWith('video/') || type === 'application/pdf' || mediaExtensions.some(ext => name.endsWith(ext));
-        };
-
-        const validFiles = files.filter(f => f.size > 0 && isMedia(f));
+        const validFiles = files.filter(f => f.size > 0);
         
         if (validFiles.length > 0) {
             startUploads(validFiles, folderId);
@@ -62,9 +51,7 @@ export function UploadZone({ folderId }: UploadZoneProps) {
                 const fileName = url.split('/').pop()?.split('?')[0] || 'dropped-asset';
                 const file = new File([blob], fileName, { type: blob.type });
                 
-                if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type === 'application/pdf') {
-                    startUploads([file], folderId);
-                }
+                startUploads([file], folderId);
             } catch (err) {
                 console.error('Failed to fetch dropped URL', err);
             }
@@ -92,7 +79,6 @@ export function UploadZone({ folderId }: UploadZoneProps) {
                 type="file"
                 id="file-upload"
                 className="hidden"
-                accept="image/*,video/*,application/pdf"
                 multiple
                 onChange={handleFileSelect}
             />
@@ -128,18 +114,18 @@ export function UploadZone({ folderId }: UploadZoneProps) {
                             isUploading ? "text-indigo-400" : "text-white"
                         )}
                     >
-                        {isUploading ? "Initializing Sync..." : isDragOver ? "Release to Transmit" : "Sync Media Assets"}
+                        {isUploading ? "Initializing Sync..." : isDragOver ? "Release to Transmit" : "Sync Digital Assets"}
                     </motion.h3>
                     <div className="flex flex-col items-center space-y-2">
                         <p className="text-sm text-zinc-500 font-bold uppercase tracking-widest opacity-60">
-                            Drop files or <span className="text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">browse nodes</span>
+                            Drop any files or <span className="text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer">browse nodes</span>
                         </p>
                         <div className="flex items-center gap-4 pt-4">
                             <span className="text-[10px] font-black text-zinc-600 bg-white/[0.02] px-3 py-1 rounded-lg border border-white/[0.05] tracking-tighter">
-                                IMAGES <span className="opacity-40 font-normal">MAX 50MB</span>
+                                ALL FORMATS <span className="opacity-40 font-normal">ZIP, PDF, ETC</span>
                             </span>
                             <span className="text-[10px] font-black text-zinc-600 bg-white/[0.02] px-3 py-1 rounded-lg border border-white/[0.05] tracking-tighter">
-                                VIDEOS <span className="opacity-40 font-normal">MAX 200MB</span>
+                                MAX UPLINK <span className="opacity-40 font-normal">200MB</span>
                             </span>
                         </div>
                     </div>

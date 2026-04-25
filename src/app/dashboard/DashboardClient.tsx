@@ -21,6 +21,7 @@ export default function DashboardClient() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
     const [allFolders, setAllFolders] = useState<Folder[]>([]);
     const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
+    const [breadcrumbs, setBreadcrumbs] = useState<Folder[]>([]);
     const [view, setView] = useState<'gallery' | 'developer'>('gallery');
     const [filterType, setFilterType] = useState<'all' | 'photos' | 'videos' | 'documents'>('all');
     const [loading, setLoading] = useState(true);
@@ -86,6 +87,20 @@ export default function DashboardClient() {
 
     useEffect(() => {
         fetchData();
+
+        // Update breadcrumbs whenever current folder or all folders change
+        if (currentFolder) {
+            const path: Folder[] = [];
+            let curr: Folder | undefined = currentFolder;
+            while (curr) {
+                path.unshift(curr);
+                const pid: string | null = curr.parent_id;
+                curr = allFolders.find(f => f.id === pid);
+            }
+            setBreadcrumbs(path);
+        } else {
+            setBreadcrumbs([]);
+        }
 
         // Listen for global upload completions to update the list in real-time
         const handleGlobalRefresh = (e: any) => {
@@ -337,12 +352,20 @@ export default function DashboardClient() {
                                     <Home className="w-3.5 h-3.5" />
                                     <span className="font-medium">Library</span>
                                 </button>
-                                {currentFolder && (
-                                    <>
+                                {breadcrumbs.map((folder) => (
+                                    <div key={folder.id} className="flex items-center gap-1.5">
                                         <ChevronRight className="w-3 h-3 text-zinc-700" />
-                                        <span className="text-white font-semibold truncate max-w-[100px] sm:max-w-[200px]">{currentFolder.name}</span>
-                                    </>
-                                )}
+                                        <button
+                                            onClick={() => { setView('gallery'); setCurrentFolder(folder); setFilterType('all'); }}
+                                            className={cn(
+                                                "hover:text-white transition-colors truncate max-w-[80px] sm:max-w-[120px]",
+                                                folder.id === currentFolder?.id ? "text-white font-semibold" : "font-medium"
+                                            )}
+                                        >
+                                            {folder.name}
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
@@ -398,7 +421,7 @@ export default function DashboardClient() {
                                     <ImageGallery
                                         images={images}
                                         filterType={filterType}
-                                        folders={!currentFolder ? allFolders : []}
+                                        folders={allFolders.filter(f => f.parent_id === (currentFolder?.id || null))}
                                         onDelete={(id) => {
                                             const img = images.find(i => i.id === id);
                                             confirmDelete('image', id, img?.original_name || 'Asset');
@@ -416,7 +439,7 @@ export default function DashboardClient() {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                             >
-                                <DeveloperHub />
+                                <DeveloperHub folders={allFolders} />
                             </motion.div>
                         )}
                     </AnimatePresence>

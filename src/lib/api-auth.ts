@@ -12,7 +12,7 @@ export async function validateApiKey(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('api_keys')
-        .select('*')
+        .select('id, key_value, name, folder_id, user_id')
         .eq('key_value', apiKey)
         .eq('is_active', true)
         .single();

@@ -20,13 +20,16 @@ import busboy from 'busboy';
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
-const MAX_IMAGE_SIZE = 50 * 1024 * 1024;
-const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
 
 function generateCleanName(mimeType: string, originalName: string): string {
     const ext = path.extname(originalName).toLowerCase() || '.bin';
-    const isVideo = mimeType.startsWith('video/');
-    const prefix = isVideo ? 'VID' : 'IMG';
+    let prefix = 'FILE';
+    if (mimeType.startsWith('image/')) prefix = 'IMG';
+    else if (mimeType.startsWith('video/')) prefix = 'VID';
+    else if (mimeType === 'application/pdf') prefix = 'PDF';
+    else if (mimeType.includes('zip')) prefix = 'ZIP';
+
     const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `${prefix}_${randomId}${ext}`;
 }
@@ -39,13 +42,23 @@ export async function POST(req: NextRequest) {
 
         // 2. Parse Multipart Form
         const contentType = req.headers.get('content-type') || '';
+        const contentLength = parseInt(req.headers.get('content-length') || '0');
+
+        // Early check for obviously too large payloads
+        if (contentLength > MAX_FILE_SIZE) {
+            return NextResponse.json({ error: `Payload too large. Max is ${MAX_FILE_SIZE / 1024 / 1024}MB` }, { status: 413 });
+        }
+
         if (!contentType.includes('multipart/form-data')) {
             return NextResponse.json({ error: 'Content-Type must be multipart/form-data' }, { status: 400 });
         }
 
         const ab = await req.arrayBuffer();
         const fullBodyBuffer = Buffer.from(ab);
-        const bb = busboy({ headers: { 'content-type': contentType } });
+        const bb = busboy({ 
+            headers: { 'content-type': contentType },
+            limits: { fileSize: MAX_FILE_SIZE, files: 1 }
+        });
 
         const p = new Promise<{
             buffer: Buffer;
@@ -57,12 +70,18 @@ export async function POST(req: NextRequest) {
             let fileInfoName = '';
             let fileInfoMime = '';
             let folderId: string | null = null;
+            let limitReached = false;
 
             bb.on('file', (name, file, info) => {
                 if (name === 'file') {
                     const chunks: Buffer[] = [];
                     file.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+                    file.on('limit', () => {
+                        limitReached = true;
+                        reject(new Error(`File too large. Max is ${MAX_FILE_SIZE / 1024 / 1024}MB`));
+                    });
                     file.on('close', () => {
+                        if (limitReached) return;
                         fileBuffer = Buffer.concat(chunks);
                         fileInfoName = info.filename;
                         fileInfoMime = info.mimeType;
@@ -77,6 +96,7 @@ export async function POST(req: NextRequest) {
             });
 
             bb.on('close', () => {
+                if (limitReached) return;
                 if (!fileBuffer) reject(new Error("No file uploaded in 'file' field"));
                 else resolve({ buffer: fileBuffer, fileName: fileInfoName, mimeType: fileInfoMime, folderId });
             });
@@ -85,13 +105,14 @@ export async function POST(req: NextRequest) {
         });
 
         bb.end(fullBodyBuffer);
-        const { buffer, fileName: originalName, mimeType: rawMime, folderId } = await p;
+        const { buffer, fileName: originalName, mimeType: rawMime, folderId: requestedFolderId } = await p;
 
-        // 3. Validate Size & Type
-        const isVideo = rawMime.startsWith('video/');
-        const limit = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
-        if (buffer.length > limit) {
-            return NextResponse.json({ error: `File too large. Max is ${limit / 1024 / 1024}MB` }, { status: 413 });
+        // Force scoped folder if key is restricted
+        const finalFolderId = keyData.folder_id || requestedFolderId;
+
+        // 3. Validate Size
+        if (buffer.length > MAX_FILE_SIZE) {
+            return NextResponse.json({ error: `File too large. Max is ${MAX_FILE_SIZE / 1024 / 1024}MB` }, { status: 413 });
         }
 
         const fileName = generateCleanName(rawMime, originalName);
@@ -123,7 +144,7 @@ export async function POST(req: NextRequest) {
             telegram_chat_id: process.env.TELEGRAM_STORAGE_CHAT_ID,
             is_chunked: tgRes.isChunked,
             chunk_count: tgRes.chunkCount,
-            folder_id: folderId,
+            folder_id: finalFolderId,
             created_at: new Date().toISOString(),
         });
 
@@ -144,7 +165,7 @@ export async function POST(req: NextRequest) {
                     share: shareUrl,
                     cdn: cdnUrl,
                     download: `${cdnUrl}?dl=1`,
-                    thumbnail: isVideo ? cdnUrl : `${cdnUrl}?w=300&fmt=webp`
+                    thumbnail: rawMime.startsWith('video/') ? cdnUrl : `${cdnUrl}?w=300&fmt=webp`
                 }
             }
         });

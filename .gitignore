@@ -1,6 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
+# Dependencies
 /node_modules
 /.pnp
 .pnp.*
@@ -10,42 +8,49 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# Next.js & Production
 /.next/
 /out/
-
-# production
 /build
+next-env.d.ts
+*.tsbuildinfo
 
-# misc
-.DS_Store
-*.pem
+# Environment Variables (SENSITIVE)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env*
 
-# debug
+# Debug & Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# custom logs
 server-debug.log
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
+# OS & Misc
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+*.pem
 
-# vercel
-.vercel
+# CloudSnap Specific Temporary Scripts
+scripts/inspect_api.js
+scripts/debug_db.js
+scripts/debug_deep.js
+scripts/temp_*
+inspect_api.js
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
+# Graphify & Research Tools
 .agent
-
-# Graphify & Exports
 /graphify-out
 export_to_obsidian.py
 __pycache__/
+.ipynb_checkpoints/
+
+# Vercel
+.vercel
