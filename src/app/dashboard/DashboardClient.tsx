@@ -23,10 +23,9 @@ export default function DashboardClient() {
     const [filterType, setFilterType] = useState<'all' | 'photos' | 'videos' | 'documents'>('all');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [showUploadModal, setShowUploadModal] = useState(false);
     const { user } = useUser();
-    const { startUpload, uploadState } = useUpload();
-    const isUploadingGlobal = uploadState.status === 'uploading';
+    const { startUploads, uploads } = useUpload();
+    const isUploadingGlobal = uploads.some(u => u.status === 'uploading');
 
     // Storage refresh key
     const [storageRefreshKey, setStorageRefreshKey] = useState(0);
@@ -75,6 +74,13 @@ export default function DashboardClient() {
             setRefreshing(false);
         }
     }, [currentFolder, filterType]);
+
+    // Auto-refresh when uploads finish
+    useEffect(() => {
+        if (uploads.length > 0 && uploads.every(u => u.status === 'completed')) {
+            fetchData();
+        }
+    }, [uploads, fetchData]);
 
     useEffect(() => {
         fetchData();
@@ -231,7 +237,7 @@ export default function DashboardClient() {
 
         // 1. Handle Real Files
         if (validFiles.length > 0) {
-            for (const file of validFiles) startUpload(file);
+            startUploads(validFiles);
         } 
         // 2. Handle URL Drops
         else if (url) {
@@ -244,13 +250,13 @@ export default function DashboardClient() {
                 const file = new File([blob], fileName, { type: blob.type });
                 
                 if (file.type.startsWith('image/') || file.type.startsWith('video/') || file.type === 'application/pdf') {
-                    startUpload(file);
+                    startUploads([file]);
                 }
             } catch (err) {
                 console.error('Failed to fetch dropped URL', err);
             }
         }
-    }, [startUpload]);
+    }, [startUploads]);
 
     useEffect(() => {
         const handleDragEnter = (e: DragEvent) => {
@@ -298,7 +304,7 @@ export default function DashboardClient() {
                 }}
                 onSetFilter={setFilterType}
                 onCreateFolder={() => setShowFolderModal(true)}
-                onUploadClick={() => setShowUploadModal(true)}
+                onUploadClick={() => window.dispatchEvent(new CustomEvent('open-upload'))}
                 onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
                 storageRefreshKey={storageRefreshKey}
             />
@@ -428,40 +434,6 @@ export default function DashboardClient() {
                     />
                 )}
 
-                {showUploadModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-                        onClick={() => { if (!isUploadingGlobal) setShowUploadModal(false); }}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl relative"
-                        >
-                            <div className="p-8">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xl font-bold text-white">Upload Assets</h3>
-                                    <button 
-                                        onClick={() => setShowUploadModal(false)}
-                                        className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition-colors"
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
-                                </div>
-                                <UploadZone folderId={currentFolder?.id} />
-                                <div className="mt-4 flex justify-end">
-                                    <button 
-                                        onClick={() => setShowUploadModal(false)}
-                                        className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
-                                    >
-                                        Minimize to background
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
 
                 {isGlobalDragOver && (
                     <motion.div
@@ -491,7 +463,7 @@ export default function DashboardClient() {
                 </button>
 
                 <button
-                    onClick={() => setShowUploadModal(true)}
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-upload'))}
                     className="flex items-center justify-center w-14 h-14 bg-white text-black rounded-2xl shadow-2xl shadow-white/10"
                 >
                     <Plus className="w-6 h-6" />
