@@ -171,9 +171,9 @@ export function SharePageClient({ asset }: SharePageClientProps) {
                 transition={{ delay: 0.5 }}
                 className="absolute bottom-8 text-center"
             >
-                <p className="text-[10px] font-black text-zinc-700 uppercase tracking-[0.4em]">
+                {/* <p className="text-[10px] font-black text-zinc-700 uppercase tracking-[0.4em]">
                     Powered by CloudSnap Telegram Mesh
-                </p>
+                </p> */}
             </motion.footer>
         </div>
     );
