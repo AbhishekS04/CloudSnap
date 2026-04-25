@@ -1,34 +1,61 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UploadCloud, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Zap, Box } from 'lucide-react';
+import { X, UploadCloud, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Zap, Box, RefreshCw } from 'lucide-react';
 import { useUpload } from '@/context/UploadContext';
 import { cn } from '@/lib/utils';
 
 export function UploadFAB() {
-    const { uploadState, resetUpload } = useUpload();
-    const [isExpanded, setIsExpanded] = useState(true);
+    const { uploadState, resetUpload, getPendingSession, clearPendingSession } = useUpload();
+    const [isExpanded, setIsExpanded]     = useState(true);
     const [showComplete, setShowComplete] = useState(false);
+    const [pendingSession, setPendingSession] = useState<{
+        sessionId: string;
+        fileName: string;
+        confirmedCount: number;
+        totalChunks: number;
+    } | null>(null);
+    const checkedRef = useRef(false);
 
     const { progress, status, fileName, currentChunk, totalChunks, speed } = uploadState;
 
+    // ── Check for a pending resume session on first render ──────────────────
+    useEffect(() => {
+        if (checkedRef.current) return;
+        checkedRef.current = true;
+
+        getPendingSession().then(session => {
+            if (session && session.confirmedCount > 0) {
+                setPendingSession({
+                    sessionId:     session.sessionId,
+                    fileName:      session.fileName,
+                    confirmedCount: session.confirmedCount,
+                    totalChunks:   session.totalChunks,
+                });
+            }
+        });
+    }, [getPendingSession]);
+
     useEffect(() => {
         if (status === 'completed') {
+            setPendingSession(null); // clear any stale resume prompt
             setShowComplete(true);
             const timer = setTimeout(() => {
                 setShowComplete(false);
                 resetUpload();
-            }, 8000); // Keep complete message longer
+            }, 8000);
             return () => clearTimeout(timer);
         }
     }, [status, resetUpload]);
 
-    if (status === 'idle' && !showComplete) return null;
-
+    const isIdle      = status === 'idle';
     const isUploading = status === 'uploading';
-    const isError = status === 'error';
-    const isCompleted = status === 'completed';
+    const isError     = status === 'error';
+    const isCompleted = status === 'completed' || showComplete;
+
+    // Only hide if truly idle, no resume prompt, and not in complete animation
+    if (isIdle && !showComplete && !pendingSession) return null;
 
     // Circular Progress Calculation
     const SIZE = 64;
@@ -83,9 +110,48 @@ export function UploadFAB() {
                             </button>
                         </div>
 
-                        {/* Progress Section */}
+                        {/* Resume Prompt — shown when a previous session is detected */}
+                        {isIdle && pendingSession && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="px-4 py-3 bg-amber-950/30 border-t border-amber-500/20"
+                            >
+                                <p className="text-[11px] font-bold text-amber-400 mb-1">
+                                    ⟳ Resume previous upload?
+                                </p>
+                                <p className="text-[10px] text-white/50 truncate mb-2">
+                                    {pendingSession.fileName} · {pendingSession.confirmedCount}/{pendingSession.totalChunks} chunks done
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => {
+                                            clearPendingSession();
+                                            setPendingSession(null);
+                                        }}
+                                        className="flex-1 text-[10px] font-bold py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/40 hover:text-white/70 transition-colors"
+                                    >
+                                        Discard
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            // User needs to re-select the file — we can't re-access it after page reload.
+                                            // Show a clear instruction.
+                                            setPendingSession(null);
+                                            alert(`Re-select "${pendingSession.fileName}" to resume from chunk ${pendingSession.confirmedCount}/${pendingSession.totalChunks}. CloudSnap will skip the already-uploaded chunks.`);
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-1 text-[10px] font-bold py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 hover:bg-amber-500/30 transition-colors"
+                                    >
+                                        <RefreshCw size={10} />
+                                        Resume
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Progress / Error / Complete content */}
                         <div className="p-4 space-y-4">
-                            {!isCompleted && !isError && (
+                        {!isCompleted && !isError && (
                                 <>
                                     <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden">
                                         <motion.div 
@@ -133,7 +199,10 @@ export function UploadFAB() {
                                     <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 mb-2">
                                         <AlertCircle size={24} />
                                     </div>
-                                    <p className="text-xs font-medium text-red-400/80">Connection lost. Retrying segments...</p>
+                                    <p className="text-xs font-medium text-red-400/80">
+                                        Upload interrupted. Your progress is saved —{' '}
+                                        <span className="text-amber-400">re-select the file to resume</span>.
+                                    </p>
                                 </div>
                             )}
                         </div>

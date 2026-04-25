@@ -31,21 +31,15 @@ import { getMetadata } from '@/lib/image-processing';
 import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
-import fs from 'fs';
 
 import { requireAdmin } from '@/lib/auth';
 
 // ─────────────────────────────────────────────
-// Logging
+// Logging — structured JSON for Vercel log drain
 // ─────────────────────────────────────────────
 
-function logServer(msg: string) {
-    try {
-        const logPath = path.join(process.cwd(), 'server-debug.log');
-        fs.appendFileSync(logPath, `${new Date().toISOString()} - ${msg}\n`);
-    } catch (e) {
-        console.error('Failed to write log:', e);
-    }
+function log(level: 'info' | 'warn' | 'error', msg: string, meta?: Record<string, unknown>) {
+    console.log(JSON.stringify({ level, msg, service: 'upload', ts: new Date().toISOString(), ...meta }));
 }
 
 // ─────────────────────────────────────────────
@@ -80,7 +74,7 @@ function generateCleanName(mimeType: string, extension?: string): string {
 // ─────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-    logServer('--- Upload Request Started (Telegram mode) ---');
+    log('info', 'Upload request started');
     try {
         await requireAdmin();
 
@@ -104,7 +98,7 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: 'URL is required' }, { status: 400 });
             }
 
-            logServer(`Fetching file from URL: ${url}`);
+            log('info', 'Fetching file from URL', { url });
             const fetchRes = await fetch(url);
             if (!fetchRes.ok) {
                 return NextResponse.json(
@@ -122,19 +116,19 @@ export async function POST(req: NextRequest) {
                 fileName = `${fileName}.${mimeType.split('/')[1] || 'bin'}`;
             }
 
-            logServer(`URL fetch: ${fileName}, ${mimeType}, ${buffer.length}B`);
+            log('info', 'URL fetch complete', { fileName, mimeType, bytes: buffer.length });
 
         // ── B. Handle multipart/form-data (direct file upload) ────────────
         } else if (contentType.includes('multipart/form-data')) {
-            logServer('Starting busboy parse...');
+            log('info', 'Starting busboy parse');
 
             let fullBodyBuffer: Buffer;
             try {
                 const ab = await req.arrayBuffer();
                 fullBodyBuffer = Buffer.from(ab);
-                logServer(`Body buffer size: ${fullBodyBuffer.length}B`);
+                log('info', 'Body buffer received', { bytes: fullBodyBuffer.length });
             } catch (e: any) {
-                logServer(`Failed to read body: ${e.message}`);
+                log('error', 'Failed to read body', { error: e.message });
                 return NextResponse.json({ error: `Failed to read body: ${e.message}` }, { status: 500 });
             }
 
@@ -191,9 +185,9 @@ export async function POST(req: NextRequest) {
                     : (queryFolderId || 'null');
                 const originalExt = path.extname(result.fileName);
                 fileName = generateCleanName(mimeType, originalExt);
-                logServer(`File parsed: ${fileName}, ${mimeType}, ${buffer.length}B`);
+                log('info', 'File parsed', { fileName, mimeType, bytes: buffer.length });
             } catch (e: any) {
-                logServer(`Busboy error: ${e.message}`);
+                log('error', 'Busboy parse error', { error: e.message });
                 return NextResponse.json({ error: `Failed to parse form: ${e.message}` }, { status: 400 });
             }
         } else {
@@ -207,7 +201,7 @@ export async function POST(req: NextRequest) {
 
         if (buffer.length > sizeLimit) {
             const actualMB = (buffer.length / 1024 / 1024).toFixed(1);
-            logServer(`File too large: ${actualMB}MB > ${sizeLabelMB}`);
+            log('warn', 'File too large', { actualMB, limit: sizeLabelMB });
             return NextResponse.json(
                 { error: `File too large (${actualMB} MB). Maximum allowed: ${sizeLabelMB} for ${isVideoMime ? 'videos' : 'images'}.` },
                 { status: 413 },
@@ -257,11 +251,11 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Upload to Telegram ─────────────────────────────────────────────
-        logServer(`Uploading to Telegram: ${fileName} (${(buffer.length / 1024 / 1024).toFixed(2)}MB)`);
+        log('info', 'Uploading to Telegram', { fileName, sizeMB: (buffer.length / 1024 / 1024).toFixed(2) });
 
         const telegramResult = await smartUploadToTelegram(buffer, fileName, mimeType);
 
-        logServer(`Telegram upload complete. Chunked=${telegramResult.isChunked}, Chunks=${telegramResult.chunkCount}`);
+        log('info', 'Telegram upload complete', { isChunked: telegramResult.isChunked, chunkCount: telegramResult.chunkCount });
 
         // ── Save metadata to Supabase ──────────────────────────────────────
         const id = uuidv4();
@@ -286,11 +280,11 @@ export async function POST(req: NextRequest) {
             });
 
         if (dbError) {
-            logServer(`DB insert error: ${dbError.message}`);
+            log('error', 'DB insert failed', { error: dbError.message });
             throw new Error(`Failed to save metadata: ${dbError.message}`);
         }
 
-        logServer(`Asset saved: id=${id}`);
+        log('info', 'Asset saved to Supabase', { id });
 
         // ── Return response ────────────────────────────────────────────────
         const cdnUrl = `/api/cdn/${id}`;
@@ -322,7 +316,7 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Upload API Error:', error);
-        logServer(`Fatal: ${error.message}`);
+        log('error', 'Upload handler fatal error', { error: error.message });
         
         if (error.message === 'Unauthorized: Admin access required') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

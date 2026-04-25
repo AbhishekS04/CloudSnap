@@ -4,15 +4,16 @@
  * Fetches assets from Telegram and serves them with:
  * - On-the-fly image resizing (?w=800)
  * - On-the-fly format conversion (?fmt=webp|avif|jpeg|png)
- * - On-the-fly quality control (?q=85)
+ * - On-the-fly quality control (?q=85 or ?q=auto for format-optimal defaults)
+ * - Two-tier cache: L1 in-process Map + L2 Upstash Redis (survives cold starts)
  * - Long-term edge caching (1 year, immutable)
- * - HTTP Range request support (required for video playback/seeking)
+ * - HTTP Range request support with chunk-aware seeking (chunked videos)
  *
  * Usage:
  *   /api/cdn/[id]              → serve original
  *   /api/cdn/[id]?w=400        → resize to 400px wide (keep aspect ratio)
  *   /api/cdn/[id]?fmt=webp     → convert to WebP
- *   /api/cdn/[id]?w=400&fmt=avif&q=80
+ *   /api/cdn/[id]?w=400&fmt=avif&q=auto
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -23,43 +24,29 @@ import {
   getTelegramStream,
 } from '@/lib/telegram';
 import sharp from 'sharp';
+import { getCache, setCache } from '@/lib/cache';
 
 // Supported output formats
 const ALLOWED_FORMATS = ['webp', 'avif', 'jpeg', 'png'] as const;
 type OutputFormat = typeof ALLOWED_FORMATS[number];
 
-// ─────────────────────────────────────────────
-// Simple In-Memory Cache (Blazing Speed)
-// ─────────────────────────────────────────────
-// Stores raw buffers to avoid Telegram round-trips on repeat hits.
-const MEMORY_CACHE = new Map<string, { buffer: Buffer; expires: number }>();
-const CACHE_TTL = 1000 * 60 * 60; // 1 hour
-const MAX_CACHE_SIZE_MB = 100; // Limit memory usage to 100MB
+// Format-aware quality defaults (tuned per codec efficiency curve)
+// PNG: no quality setting — sharp's PNG quality doesn't meaningfully reduce file size
+const FORMAT_QUALITY_DEFAULTS: Record<string, number> = {
+  webp: 82,
+  jpeg: 78, // mozjpeg is enabled so 78 here ≈ 85+ visually
+  avif: 65, // AVIF is very efficient; 65 produces excellent results
+};
 
-function getFromCache(key: string): Buffer | null {
-  const item = MEMORY_CACHE.get(key);
-  if (item && item.expires > Date.now()) {
-    return item.buffer;
+function resolveQuality(rawQ: string | null, format: OutputFormat | null): number {
+  if (rawQ === 'auto' || rawQ === null) {
+    return FORMAT_QUALITY_DEFAULTS[format ?? 'webp'] ?? 82;
   }
-  if (item) MEMORY_CACHE.delete(key);
-  return null;
+  return Math.min(100, Math.max(1, parseInt(rawQ, 10)));
 }
 
-function setToCache(key: string, buffer: Buffer) {
-  // Simple check to avoid memory bloat
-  let currentSize = 0;
-  MEMORY_CACHE.forEach(v => currentSize += v.buffer.length);
-  
-  if (currentSize + buffer.length > MAX_CACHE_SIZE_MB * 1024 * 1024) {
-    // Basic LRU: delete oldest if full
-    const oldestKey = MEMORY_CACHE.keys().next().value;
-    if (oldestKey) MEMORY_CACHE.delete(oldestKey);
-  }
-
-  if (buffer.length < 20 * 1024 * 1024) { // Only cache chunks/files < 20MB
-    MEMORY_CACHE.set(key, { buffer, expires: Date.now() + CACHE_TTL });
-  }
-}
+// Byte size of each Telegram chunk — must stay in sync with upload CHUNK_SIZE
+const TELEGRAM_CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB
 
 // GET /api/cdn/[id]
 // ─────────────────────────────────────────────
@@ -74,20 +61,18 @@ export async function GET(
   // Parse transform params
   const requestedWidth  = parseInt(searchParams.get('w') ?? '0', 10) || null;
   const requestedFormat = (searchParams.get('fmt') ?? '') as OutputFormat | '';
-  const requestedQuality = Math.min(
-    100,
-    Math.max(1, parseInt(searchParams.get('q') ?? '85', 10)),
-  );
 
   const outputFormat: OutputFormat | null = ALLOWED_FORMATS.includes(requestedFormat as OutputFormat)
     ? (requestedFormat as OutputFormat)
     : null;
 
+  const requestedQuality = resolveQuality(searchParams.get('q'), outputFormat);
+
   try {
     // ── 1. Look up asset metadata in Supabase ──────────────────────────────
     const { data: asset, error } = await supabaseAdmin
       .from('assets')
-      .select('id, mime_type, telegram_file_ids, is_chunked, original_name')
+      .select('id, mime_type, telegram_file_ids, is_chunked, original_name, original_size, chunk_count')
       .eq('id', id)
       .single();
 
@@ -95,7 +80,7 @@ export async function GET(
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
 
-    // ── 2. Binary Handling (Stream vs Buffer) ──────────────────────────────
+    // ── 2. Determine MIME & base response headers ──────────────────────────
     const mimeType     = asset.mime_type as string;
     const isImage      = mimeType.startsWith('image/');
     const isVideo      = mimeType.startsWith('video/');
@@ -113,52 +98,132 @@ export async function GET(
     const needsTransform = isImage && (requestedWidth || outputFormat);
     const rangeHeader    = req.headers.get('range');
 
-    // ── 3. Check Cache First (Final Output Cache) ──────────────────────────
-    // Create a unique key for this specific request (id + transforms)
-    const transformKey = `${id}-${requestedWidth}-${outputFormat}-${requestedQuality}`;
-    const cachedResponse = getFromCache(transformKey);
-    
-    if (cachedResponse && !rangeHeader) {
-      return new NextResponse(new Uint8Array(cachedResponse), {
-        status: 200,
-        headers: { 
-          ...baseHeaders, 
-          'Content-Type': needsTransform ? `image/${outputFormat || 'webp'}` : mimeType,
-          'X-Cache-Status': 'HIT-MEMORY'
-        },
-      });
+    // ── 3. L1/L2 Cache Check — Final Output ──────────────────────────────
+    // Key is unique per (id + transform params). Range requests bypass output cache
+    // because the response body depends on the byte range, not the transform.
+    const transformKey = `cs:${id}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
+
+    if (!rangeHeader) {
+      const cached = await getCache(transformKey);
+      if (cached) {
+        return new NextResponse(new Uint8Array(cached.buffer), {
+          status: 200,
+          headers: {
+            ...baseHeaders,
+            'Content-Type':     needsTransform ? `image/${outputFormat || 'webp'}` : mimeType,
+            'Content-Length':   String(cached.buffer.length),
+            'X-Cache-Source':   cached.source,  // 'L1' or 'L2'
+            'X-Cache-Status':   `HIT-${cached.source}`,
+          },
+        });
+      }
     }
 
-    // Case A: Simple Stream Proxy (Single Chunk, No Transform, No Range)
+    // ── 4. Case A: Simple Stream Proxy ────────────────────────────────────
+    // Non-chunked assets with no transform and no range request — stream directly.
+    // Streaming avoids loading the full binary into Node.js memory.
     if (!asset.is_chunked && !needsTransform && !rangeHeader) {
       try {
         const stream = await getTelegramStream(asset.telegram_file_ids[0]);
         return new NextResponse(stream, {
           status: 200,
-          headers: { ...baseHeaders, 'Content-Type': mimeType, 'X-Cache-Status': 'MISS-STREAM' },
+          headers: { ...baseHeaders, 'Content-Type': mimeType, 'X-Cache-Status': 'MISS-STREAM', 'X-Cache-Source': 'TELEGRAM' },
         });
       } catch (e) {
         console.warn('[CDN] Direct stream failed, falling back to buffer:', e);
       }
     }
 
-    // Case B: Buffer-based Handling (Chunked, Range Requests, or Image Transforms)
-    let buffer: Buffer | null = getFromCache(`raw-${id}`);
+    // ── 5. Case B: Range Request (video seeking) ───────────────────────────
+    // Chunk-aware: for multi-chunk videos, only download the Telegram chunks
+    // that contain the requested byte range — not the entire file.
+    if (isVideo && rangeHeader) {
+      const totalLength = (asset.original_size as number) ?? 0;
+
+      const match     = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+      const byteStart = match?.[1] ? parseInt(match[1], 10) : 0;
+      const byteEnd   = match?.[2]
+        ? parseInt(match[2], 10)
+        : Math.min(byteStart + 1024 * 1024, totalLength - 1); // default: 1MB window
+
+      const clampedStart = Math.max(0, byteStart);
+      const clampedEnd   = Math.min(byteEnd, totalLength - 1);
+
+      if (asset.is_chunked && (asset.telegram_file_ids as string[]).length > 1 && totalLength > 0) {
+        // Only fetch the specific Telegram chunk(s) that contain the byte range
+        const startChunkIdx = Math.floor(clampedStart / TELEGRAM_CHUNK_BYTES);
+        const endChunkIdx   = Math.floor(clampedEnd   / TELEGRAM_CHUNK_BYTES);
+
+        const neededBuffers: Buffer[] = [];
+        for (let ci = startChunkIdx; ci <= endChunkIdx; ci++) {
+          const chunkKey  = `cs:chunk:${id}:${ci}`;
+          const fromCache = await getCache(chunkKey);
+          if (fromCache) {
+            neededBuffers.push(fromCache.buffer);
+          } else {
+            const chunkBuf = await downloadFromTelegram((asset.telegram_file_ids as string[])[ci]);
+            await setCache(chunkKey, chunkBuf);
+            neededBuffers.push(chunkBuf);
+          }
+        }
+
+        const combined   = Buffer.concat(neededBuffers);
+        const sliceStart = clampedStart - startChunkIdx * TELEGRAM_CHUNK_BYTES;
+        const slice      = combined.subarray(sliceStart, sliceStart + (clampedEnd - clampedStart + 1));
+
+        return new NextResponse(new Uint8Array(slice), {
+          status: 206,
+          headers: {
+            ...baseHeaders,
+            'Content-Type':   mimeType,
+            'Content-Range':  `bytes ${clampedStart}-${clampedEnd}/${totalLength}`,
+            'Content-Length': String(slice.length),
+            'X-Cache-Status': 'CHUNK-AWARE-RANGE',
+            'X-Cache-Source': 'CHUNK-CACHE',
+          },
+        });
+      }
+
+      // Non-chunked video range request — download the single file, slice it
+      const rawKey    = `cs:raw:${id}`;
+      let singleBuf   = (await getCache(rawKey))?.buffer ?? null;
+      if (!singleBuf) {
+        singleBuf = await downloadFromTelegram((asset.telegram_file_ids as string[])[0]);
+        await setCache(rawKey, singleBuf);
+      }
+      const total    = singleBuf.length;
+      const safeEnd  = Math.min(clampedEnd, total - 1);
+      const slice    = singleBuf.subarray(clampedStart, safeEnd + 1);
+      return new NextResponse(new Uint8Array(slice), {
+        status: 206,
+        headers: {
+          ...baseHeaders,
+          'Content-Type':  mimeType,
+          'Content-Range': `bytes ${clampedStart}-${safeEnd}/${total}`,
+          'Content-Length': String(slice.length),
+          'X-Cache-Status': 'HIT-RANGE',
+          'X-Cache-Source': 'BUFFER',
+        },
+      });
+    }
+
+    // ── 6. Case C: Buffer — Image Transform or Chunked Non-Range ─────────
+    const rawKey = `cs:raw:${id}`;
+    let buffer: Buffer | null = (await getCache(rawKey))?.buffer ?? null;
 
     if (!buffer) {
       try {
         if (asset.is_chunked) {
-          buffer = await downloadChunkedFromTelegram(asset.telegram_file_ids);
+          buffer = await downloadChunkedFromTelegram(asset.telegram_file_ids as string[]);
         } else {
-          buffer = await downloadFromTelegram(asset.telegram_file_ids[0]);
+          buffer = await downloadFromTelegram((asset.telegram_file_ids as string[])[0]);
         }
-        // Cache the raw buffer for 1 hour
-        if (buffer) setToCache(`raw-${id}`, buffer);
+        if (buffer) await setCache(rawKey, buffer);
       } catch (tgErr: any) {
         if (tgErr.message?.includes('400')) {
-          return NextResponse.json({ 
-            error: 'Asset too large for legacy storage. Please re-upload.', 
-            code: 'TELEGRAM_FILE_TOO_LARGE' 
+          return NextResponse.json({
+            error: 'Asset too large for legacy storage. Please re-upload.',
+            code: 'TELEGRAM_FILE_TOO_LARGE',
           }, { status: 422 });
         }
         throw tgErr;
@@ -167,30 +232,7 @@ export async function GET(
 
     if (!buffer) throw new Error('Failed to retrieve buffer');
 
-    // Handle Range Requests
-    if (isVideo && rangeHeader) {
-      const totalLength = buffer.length;
-      const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
-      const start = match?.[1] ? parseInt(match[1], 10) : 0;
-      const end   = match?.[2] ? parseInt(match[2], 10) : totalLength - 1;
-
-      const chunkStart = Math.max(0, start);
-      const chunkEnd   = Math.min(end, totalLength - 1);
-      const chunkLen   = chunkEnd - chunkStart + 1;
-
-      return new NextResponse(new Uint8Array(buffer.subarray(chunkStart, chunkEnd + 1)), {
-        status: 206,
-        headers: {
-          ...baseHeaders,
-          'Content-Type':  mimeType,
-          'Content-Range': `bytes ${chunkStart}-${chunkEnd}/${totalLength}`,
-          'Content-Length': String(chunkLen),
-          'X-Cache-Status': 'HIT-RANGE'
-        },
-      });
-    }
-
-    // Handle Image Transformations
+    // ── 7. Image Transform ────────────────────────────────────────────────
     let outputBuffer = buffer;
     let contentType  = mimeType;
 
@@ -206,26 +248,27 @@ export async function GET(
       switch (fmt) {
         case 'avif': pipeline = pipeline.avif({ quality: requestedQuality }); break;
         case 'jpeg': pipeline = pipeline.jpeg({ quality: requestedQuality, mozjpeg: true }); break;
-        case 'png':  pipeline = pipeline.png({ quality: requestedQuality }); break;
+        case 'png':  pipeline = pipeline.png(); break; // PNG: quality param doesn't help
         default:     pipeline = pipeline.webp({ quality: requestedQuality });
       }
+
       outputBuffer = await pipeline.toBuffer();
-      
-      // Cache the final transformed image
-      setToCache(transformKey, outputBuffer);
+      // Store the transformed output in both L1 + L2
+      await setCache(transformKey, outputBuffer);
     } else if (!asset.is_chunked) {
-      // Cache the original single-chunk file as its own transform key for fast hits
-      setToCache(transformKey, outputBuffer);
+      // Cache the untransformed original for repeat hits (only if under the size gate)
+      await setCache(transformKey, outputBuffer);
     }
 
-    // Final Response (Buffered)
+    // ── 8. Final Buffered Response ────────────────────────────────────────
     return new NextResponse(new Uint8Array(outputBuffer), {
       status: 200,
       headers: {
         ...baseHeaders,
         'Content-Type':   contentType,
         'Content-Length': String(outputBuffer.length),
-        'X-Cache-Status': 'MISS-CACHE-STORED'
+        'X-Cache-Status': 'MISS-STORED',
+        'X-Cache-Source': 'TELEGRAM',
       },
     });
 
