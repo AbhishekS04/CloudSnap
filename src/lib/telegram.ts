@@ -14,8 +14,9 @@ const CHAT_ID   = process.env.TELEGRAM_STORAGE_CHAT_ID!;
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // Telegram's getFile API can only serve files ≤ 20MB.
-// We use 19MB chunks to stay safely under that hard limit.
-export const CHUNK_SIZE = 19 * 1024 * 1024; // 19 MB
+// Vercel's Serverless Function limit is 4.5MB.
+// We use 4MB chunks to stay safely under BOTH limits.
+export const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
 
 // ─────────────────────────────────────────────
 // Types

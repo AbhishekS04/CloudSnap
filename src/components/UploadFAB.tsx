@@ -2,153 +2,234 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, UploadCloud, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, UploadCloud, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Zap, Box } from 'lucide-react';
 import { useUpload } from '@/context/UploadContext';
+import { cn } from '@/lib/utils';
 
 export function UploadFAB() {
     const { uploadState, resetUpload } = useUpload();
-    const [isOpen, setIsOpen] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(true);
     const [showComplete, setShowComplete] = useState(false);
 
-    const { progress, status, fileName, currentChunk, totalChunks } = uploadState;
+    const { progress, status, fileName, currentChunk, totalChunks, speed } = uploadState;
 
-    // Show completion for 5 seconds then hide
     useEffect(() => {
         if (status === 'completed') {
             setShowComplete(true);
             const timer = setTimeout(() => {
                 setShowComplete(false);
                 resetUpload();
-            }, 5000);
+            }, 8000); // Keep complete message longer
             return () => clearTimeout(timer);
         }
     }, [status, resetUpload]);
 
     if (status === 'idle' && !showComplete) return null;
 
-    // SVG ring progress indicator
-    const SIZE = 56;
-    const STROKE = 3;
-    const R = (SIZE - STROKE) / 2;
-    const CIRC = 2 * Math.PI * R;
-    const dashOffset = CIRC - (progress / 100) * CIRC;
-
     const isUploading = status === 'uploading';
     const isError = status === 'error';
     const isCompleted = status === 'completed';
 
+    // Circular Progress Calculation
+    const SIZE = 64;
+    const STROKE = 4;
+    const R = (SIZE - STROKE) / 2;
+    const CIRC = 2 * Math.PI * R;
+    const dashOffset = CIRC - (progress / 100) * CIRC;
+
     return (
-        <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3 pointer-events-none">
-            {/* ── Popup progress card ──────────────────────────────── */}
+        <div className="fixed bottom-8 right-8 z-[9999] flex flex-col items-end gap-4 pointer-events-none">
+            {/* ── Enhanced Upload Card ──────────────────────────────── */}
             <AnimatePresence>
-                {isOpen && (
+                {isExpanded && (
                     <motion.div
-                        key="upload-fab-popup"
-                        initial={{ opacity: 0, scale: 0.85, y: 12 }}
-                        animate={{ opacity: 1, scale: 1,    y: 0  }}
-                        exit  ={{ opacity: 0, scale: 0.85, y: 12 }}
-                        className="pointer-events-auto bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/60 rounded-2xl shadow-2xl p-4 w-72 origin-bottom-right"
-                        style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.7)' }}
+                        initial={{ opacity: 0, y: 20, scale: 0.95, filter: 'blur(10px)' }}
+                        animate={{ opacity: 1, y: 0,  scale: 1,    filter: 'blur(0px)'  }}
+                        exit   ={{ opacity: 0, y: 20, scale: 0.95, filter: 'blur(10px)' }}
+                        className={cn(
+                            "pointer-events-auto w-80 overflow-hidden rounded-2xl border backdrop-blur-2xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]",
+                            isError ? "bg-red-950/20 border-red-500/30" : 
+                            isCompleted ? "bg-emerald-950/20 border-emerald-500/30" : 
+                            "bg-zinc-900/60 border-white/10"
+                        )}
                     >
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2 overflow-hidden">
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                                    isError ? 'bg-red-500/20' : isCompleted ? 'bg-emerald-500/20' : 'bg-indigo-500/20'
-                                }`}>
-                                    {isError ? <AlertCircle className="w-3.5 h-3.5 text-red-400" /> :
-                                     isCompleted ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> :
-                                     <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />}
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/5">
+                            <div className="flex items-center gap-3">
+                                <div className={cn(
+                                    "p-2 rounded-xl",
+                                    isError ? "bg-red-500/20 text-red-400" :
+                                    isCompleted ? "bg-emerald-500/20 text-emerald-400" :
+                                    "bg-indigo-500/20 text-indigo-400"
+                                )}>
+                                    {isError ? <AlertCircle size={18} /> : 
+                                     isCompleted ? <CheckCircle2 size={18} /> : 
+                                     <UploadCloud size={18} className="animate-pulse" />}
                                 </div>
-                                <div className="flex flex-col overflow-hidden">
-                                    <p className="text-white text-xs font-semibold truncate">
-                                        {isError ? 'Upload Failed' : isCompleted ? 'Upload Complete' : 'Uploading…'}
+                                <div>
+                                    <h4 className="text-sm font-bold text-white/90 leading-none">
+                                        {isError ? 'System Error' : isCompleted ? 'Transfer Ready' : 'Syncing Media'}
+                                    </h4>
+                                    <p className="text-[10px] text-white/40 font-medium mt-1 truncate max-w-[140px]">
+                                        {fileName}
                                     </p>
-                                    <p className="text-zinc-500 text-[10px] truncate">{fileName}</p>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                className="p-1.5 rounded-lg hover:bg-zinc-700 text-zinc-400 hover:text-white transition-colors pointer-events-auto"
+                            <button 
+                                onClick={() => setIsExpanded(false)}
+                                className="p-2 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
                             >
-                                <X className="w-3.5 h-3.5" />
+                                <ChevronDown size={16} />
                             </button>
                         </div>
 
+                        {/* Progress Section */}
+                        <div className="p-4 space-y-4">
+                            {!isCompleted && !isError && (
+                                <>
+                                    <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                                        <motion.div 
+                                            className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
+                                            animate={{ width: `${progress}%` }}
+                                            transition={{ type: 'spring', bounce: 0, duration: 0.8 }}
+                                        />
+                                        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.1)_50%,transparent_75%)] bg-[length:250%_250%] animate-[shimmer_2s_infinite]" />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                                            <div className="flex items-center gap-1.5 text-white/40 mb-0.5">
+                                                <Box size={10} />
+                                                <span className="text-[9px] uppercase font-bold tracking-wider">Segments</span>
+                                            </div>
+                                            <p className="text-xs font-mono font-bold text-white/80">
+                                                {currentChunk} <span className="text-white/20">/</span> {totalChunks}
+                                            </p>
+                                        </div>
+                                        <div className="bg-white/5 rounded-xl p-2 border border-white/5">
+                                            <div className="flex items-center gap-1.5 text-white/40 mb-0.5">
+                                                <Zap size={10} />
+                                                <span className="text-[9px] uppercase font-bold tracking-wider">Velocity</span>
+                                            </div>
+                                            <p className="text-xs font-mono font-bold text-indigo-400">
+                                                {speed || '0.00'} <span className="text-[9px] font-medium text-white/20">MB/s</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {isCompleted && (
+                                <div className="py-2 flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 mb-2">
+                                        <CheckCircle2 size={24} />
+                                    </div>
+                                    <p className="text-xs font-medium text-emerald-400/80">Media successfully synced to CDN</p>
+                                </div>
+                            )}
+
+                            {isError && (
+                                <div className="py-2 flex flex-col items-center text-center">
+                                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 mb-2">
+                                        <AlertCircle size={24} />
+                                    </div>
+                                    <p className="text-xs font-medium text-red-400/80">Connection lost. Retrying segments...</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer / Status */}
                         {!isCompleted && !isError && (
-                            <>
-                                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden mb-2">
-                                    <motion.div
-                                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
-                                        animate={{ width: `${progress}%` }}
-                                        transition={{ duration: 0.4, ease: 'easeOut' }}
-                                    />
+                            <div className="px-4 py-2 bg-indigo-500/10 border-t border-indigo-500/20 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Active Stream</span>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <p className="text-zinc-500 text-[10px]">
-                                        {totalChunks && totalChunks > 1 
-                                            ? `Chunk ${currentChunk} of ${totalChunks}`
-                                            : 'Processing…'}
-                                    </p>
-                                    <span className="text-indigo-400 text-xs font-mono font-semibold">
-                                        {progress}%
-                                    </span>
-                                </div>
-                            </>
+                                <span className="text-xs font-black text-white/90 font-mono italic">
+                                    {progress}%
+                                </span>
+                            </div>
                         )}
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* ── FAB ──────────────────────────── */}
-            <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
+            {/* ── Premium Circular FAB ──────────────────────────── */}
+            <div className="pointer-events-auto relative group">
                 <motion.button
-                    onClick={() => setIsOpen(v => !v)}
-                    whileHover={{ scale: 1.08 }}
-                    whileTap ={{ scale: 0.93 }}
-                    className="relative flex items-center justify-center rounded-full focus:outline-none"
-                    style={{ width: SIZE, height: SIZE }}
+                    onClick={() => setIsExpanded(v => !v)}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="relative flex items-center justify-center rounded-full bg-zinc-950 border border-white/10 shadow-2xl p-1"
                 >
-                    <span
-                        className={`absolute inset-0 rounded-full animate-pulse ${
-                            isError ? 'bg-red-500/10' : isCompleted ? 'bg-emerald-500/10' : 'bg-indigo-500/10'
-                        }`}
-                    />
-
+                    {/* SVG Progress Ring */}
                     <svg width={SIZE} height={SIZE} className="absolute inset-0 -rotate-90">
-                        <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={STROKE} />
+                        <circle 
+                            cx={SIZE/2} cy={SIZE/2} r={R} 
+                            fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth={STROKE} 
+                        />
                         <motion.circle
-                            cx={SIZE/2} cy={SIZE/2} r={R} fill="none" 
-                            stroke={isError ? '#f87171' : isCompleted ? '#34d399' : 'url(#fab-grad)'}
-                            strokeWidth={STROKE} strokeLinecap="round" strokeDasharray={CIRC}
+                            cx={SIZE/2} cy={SIZE/2} r={R} 
+                            fill="none" 
+                            stroke={isError ? '#ef4444' : isCompleted ? '#10b981' : 'url(#fab-gradient)'}
+                            strokeWidth={STROKE} 
+                            strokeLinecap="round" 
+                            strokeDasharray={CIRC}
                             animate={{ strokeDashoffset: dashOffset }}
+                            transition={{ type: 'spring', stiffness: 50, damping: 15 }}
                         />
                         <defs>
-                            <linearGradient id="fab-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <linearGradient id="fab-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
                                 <stop offset="0%" stopColor="#6366f1" />
-                                <stop offset="100%" stopColor="#a78bfa" />
+                                <stop offset="100%" stopColor="#ec4899" />
                             </linearGradient>
                         </defs>
                     </svg>
 
-                    <span className="relative z-10 flex items-center justify-center w-10 h-10 rounded-full bg-zinc-900 border border-zinc-700/60 shadow-lg">
-                        <motion.span
-                            animate={isUploading ? { rotate: 360 } : {}}
-                            transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
-                        >
-                            {isError ? <AlertCircle className="w-4 h-4 text-red-400" /> :
-                             isCompleted ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
-                             <UploadCloud className="w-4 h-4 text-indigo-400" />}
-                        </motion.span>
-                    </span>
+                    {/* Inner Content */}
+                    <div className={cn(
+                        "relative z-10 flex items-center justify-center rounded-full transition-all duration-500",
+                        isExpanded ? "w-10 h-10" : "w-12 h-12",
+                        isError ? "bg-red-500/10 text-red-400" :
+                        isCompleted ? "bg-emerald-500/10 text-emerald-400" :
+                        "bg-white/5 text-indigo-400"
+                    )}>
+                        {isExpanded ? (
+                            <ChevronUp size={20} className="text-white/40" />
+                        ) : (
+                            <motion.div
+                                animate={isUploading ? { rotate: 360 } : {}}
+                                transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                            >
+                                {isError ? <AlertCircle size={22} /> :
+                                 isCompleted ? <CheckCircle2 size={22} /> :
+                                 <UploadCloud size={22} />}
+                            </motion.div>
+                        )}
+                    </div>
 
-                    {!isCompleted && !isError && (
-                        <span className="absolute -bottom-1 -left-1 bg-zinc-900 border border-zinc-700 rounded-full px-1.5 py-0.5 text-[9px] font-mono font-bold text-indigo-300 tabular-nums shadow-md">
+                    {/* Progress Badge */}
+                    {!isExpanded && !isCompleted && !isError && (
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.5 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="absolute -top-1 -right-1 bg-indigo-600 text-[10px] font-black px-1.5 py-0.5 rounded-full text-white shadow-xl italic"
+                        >
                             {progress}%
-                        </span>
+                        </motion.div>
                     )}
                 </motion.button>
+                
+                {/* Tooltip / Label */}
+                <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-zinc-900 border border-white/10 px-3 py-1.5 rounded-xl whitespace-nowrap shadow-xl">
+                        <p className="text-[11px] font-bold text-white/60">
+                            {isUploading ? 'View Sync Status' : isCompleted ? 'Transfer Complete' : 'Manage Uploads'}
+                        </p>
+                    </div>
+                </div>
             </div>
+
         </div>
     );
 }
-

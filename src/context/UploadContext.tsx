@@ -9,11 +9,13 @@ interface UploadState {
   status: 'idle' | 'uploading' | 'completed' | 'error';
   totalChunks?: number;
   currentChunk?: number;
+  startTime?: number;
+  speed?: number; // in MB/s
 }
 
 interface UploadContextType {
   uploadState: UploadState;
-  startUpload: (file: File) => Promise<void>;
+  startUpload: (file: File, folderId?: string | null) => Promise<void>;
   resetUpload: () => void;
 }
 
@@ -30,20 +32,25 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     setUploadState({ fileName: '', progress: 0, status: 'idle' });
   }, []);
 
-  const startUpload = useCallback(async (file: File) => {
+  const startUpload = useCallback(async (file: File, folderId?: string | null) => {
     setUploadState({
       fileName: file.name,
       progress: 0,
       status: 'uploading',
+      startTime: Date.now(),
+      speed: 0
     });
 
-    const CHUNK_SIZE = 19 * 1024 * 1024; // 19MB (Telegram limit)
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB (Vercel Limit)
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    let uploadedSize = 0;
     
     try {
       const telegramFileIds: string[] = [];
+      const startTime = Date.now();
 
       for (let i = 0; i < totalChunks; i++) {
+        const chunkStartTime = Date.now();
         const start = i * CHUNK_SIZE;
         const end = Math.min(file.size, start + CHUNK_SIZE);
         const chunk = file.slice(start, end);
@@ -69,10 +76,15 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         const { fileId } = await res.json();
         telegramFileIds.push(fileId);
         
+        uploadedSize += chunk.size;
+        const elapsed = (Date.now() - startTime) / 1000;
+        const currentSpeed = (uploadedSize / (1024 * 1024)) / elapsed;
+
         // Update progress after successful chunk
         setUploadState(prev => ({
           ...prev,
           progress: Math.round(((i + 1) / totalChunks) * 100),
+          speed: parseFloat(currentSpeed.toFixed(2))
         }));
       }
 
@@ -86,6 +98,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           size: file.size,
           telegramFileIds,
           isChunked: totalChunks > 1,
+          folderId: folderId || null
         }),
       });
 
