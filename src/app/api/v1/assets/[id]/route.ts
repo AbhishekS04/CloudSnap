@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase-server';
+import { requireApiKey } from '@/lib/api-auth';
+
+/**
+ * GET /api/v1/assets/[id]
+ * Returns detailed metadata for a single asset.
+ */
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+    try {
+        await requireApiKey(req);
+        const { id } = params;
+
+        const { data, error } = await supabaseAdmin
+            .from('assets')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !data) {
+            return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+        }
+
+        const origin = req.nextUrl.origin;
+
+        return NextResponse.json({
+            success: true,
+            asset: {
+                id: data.id,
+                name: data.original_name,
+                mime_type: data.mime_type,
+                size: data.original_size,
+                dimensions: data.width ? { width: data.width, height: data.height } : null,
+                created_at: data.created_at,
+                links: {
+                    share: `${origin}/share/${data.id}`,
+                    cdn: `${origin}/api/cdn/${data.id}`,
+                    download: `${origin}/api/cdn/${data.id}?dl=1`,
+                    thumbnail: data.mime_type.startsWith('video/') ? `${origin}/api/cdn/${data.id}` : `${origin}/api/cdn/${data.id}?w=300&fmt=webp`
+                }
+            }
+        });
+
+    } catch (error: any) {
+        return NextResponse.json(
+            { error: error.message || 'Internal Server Error' }, 
+            { status: error.message?.includes('Unauthorized') ? 401 : 500 }
+        );
+    }
+}

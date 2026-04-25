@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
 import { ImageRecord, Folder } from '@/lib/types';
-import { FolderPlus, ChevronRight, Home, Cloud, Menu, X, Plus } from 'lucide-react';
+import { FolderPlus, ChevronRight, Home, Cloud, Menu, X, Plus, Cpu } from 'lucide-react';
 import { useUser } from "@clerk/nextjs";
+import { DeveloperHub } from '@/components/DeveloperHub';
 import { ClientUserButton } from "@/components/ClientUserButton";
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseDropEvent } from '@/lib/upload-utils';
@@ -20,6 +21,7 @@ export default function DashboardClient() {
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
     const [allFolders, setAllFolders] = useState<Folder[]>([]);
     const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
+    const [view, setView] = useState<'gallery' | 'developer'>('gallery');
     const [filterType, setFilterType] = useState<'all' | 'photos' | 'videos' | 'documents'>('all');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -299,10 +301,13 @@ export default function DashboardClient() {
                 currentFolder={currentFolder}
                 filterType={filterType}
                 onNavigate={(folder) => {
+                    setView('gallery');
                     setCurrentFolder(folder);
                     setFilterType('all');
                 }}
-                onSetFilter={setFilterType}
+                onSetFilter={(type) => { setView('gallery'); setFilterType(type); }}
+                onSetView={setView}
+                view={view}
                 onCreateFolder={() => setShowFolderModal(true)}
                 onUploadClick={() => window.dispatchEvent(new CustomEvent('open-upload'))}
                 onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
@@ -326,7 +331,7 @@ export default function DashboardClient() {
 
                             <div className="flex items-center gap-1.5 text-[13px] text-zinc-400 bg-zinc-900/40 px-3 py-1.5 rounded-2xl border border-zinc-800/50">
                                 <button
-                                    onClick={() => { setCurrentFolder(null); setFilterType('all'); }}
+                                    onClick={() => { setView('gallery'); setCurrentFolder(null); setFilterType('all'); }}
                                     className="hover:text-white flex items-center gap-1.5 transition-colors"
                                 >
                                     <Home className="w-3.5 h-3.5" />
@@ -359,39 +364,62 @@ export default function DashboardClient() {
                     </div>
                 </header>
 
-                <main className="flex-1 p-6 md:p-8 lg:p-10 w-full">
-                    <div className="mb-12 flex flex-col gap-2">
-                        <h2 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-white leading-tight italic-display">
-                            {filterType === 'photos' ? 'Photos' : 
-                             filterType === 'videos' ? 'Videos' : 
-                             filterType === 'documents' ? 'Documents' :
-                             currentFolder ? currentFolder.name : 'Assets'}
-                        </h2>
-                        <p className="text-zinc-500 font-medium font-sans opacity-60">
-                            {images.length} {images.length === 1 ? 'asset' : 'assets'} in this view
-                        </p>
-                    </div>
+                <main className="flex-1 p-6 md:p-8 lg:p-10 w-full overflow-y-auto custom-scrollbar">
+                    <AnimatePresence mode="wait">
+                        {view === 'gallery' ? (
+                            <motion.div
+                                key="gallery"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="space-y-8"
+                            >
+                                <div className="mb-12 flex flex-col gap-2">
+                                    <h2 className="text-4xl sm:text-5xl lg:text-6xl font-medium tracking-tight text-white leading-tight italic-display">
+                                        {filterType === 'photos' ? 'Photos' : 
+                                         filterType === 'videos' ? 'Videos' : 
+                                         filterType === 'documents' ? 'Documents' :
+                                         currentFolder ? currentFolder.name : 'Assets'}
+                                    </h2>
+                                    {!loading && (
+                                        <p className="text-zinc-500 font-medium font-sans opacity-60">
+                                            {images.length} {images.length === 1 ? 'asset' : 'assets'} in this view
+                                        </p>
+                                    )}
+                                </div>
 
-                    {loading ? (
-                        <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6">
-                            {[...Array(8)].map((_, i) => (
-                                <div key={i} className="mb-6 break-inside-avoid aspect-[4/5] bg-zinc-900/50 rounded-3xl animate-pulse border border-zinc-800/50" />
-                            ))}
-                        </div>
-                    ) : (
-                        <ImageGallery
-                            images={images}
-                            filterType={filterType}
-                            folders={[]}
-                            onDelete={(id) => {
-                                const img = images.find(i => i.id === id);
-                                confirmDelete('image', id, img?.original_name || 'Asset');
-                            }}
-                            onNavigate={setCurrentFolder}
-                            onMoveImage={handleMoveImage}
-                            onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
-                        />
-                    )}
+                                {loading ? (
+                                    <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6">
+                                        {[...Array(8)].map((_, i) => (
+                                            <div key={i} className="mb-6 break-inside-avoid aspect-[4/5] bg-zinc-900/50 rounded-3xl animate-pulse border border-zinc-800/50" />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <ImageGallery
+                                        images={images}
+                                        filterType={filterType}
+                                        folders={!currentFolder ? allFolders : []}
+                                        onDelete={(id) => {
+                                            const img = images.find(i => i.id === id);
+                                            confirmDelete('image', id, img?.original_name || 'Asset');
+                                        }}
+                                        onNavigate={(f) => { setCurrentFolder(f); setFilterType('all'); }}
+                                        onMoveImage={handleMoveImage}
+                                        onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
+                                    />
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="developer"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                            >
+                                <DeveloperHub />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </main>
             </div>
 

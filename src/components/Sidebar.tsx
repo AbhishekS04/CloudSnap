@@ -14,7 +14,8 @@ import {
     Search,
     Cloud,
     Trash2,
-    FileText
+    FileText,
+    Cpu
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Folder } from "@/lib/types";
@@ -35,6 +36,8 @@ interface SidebarProps {
     onClose?: () => void;
     className?: string;
     storageRefreshKey?: number;
+    onSetView: (view: 'gallery' | 'developer') => void;
+    view: 'gallery' | 'developer';
 }
 
 export function Sidebar({
@@ -49,7 +52,9 @@ export function Sidebar({
     isOpen,
     onClose,
     className,
-    storageRefreshKey
+    storageRefreshKey,
+    onSetView,
+    view
 }: SidebarProps) {
     const { user } = useUser();
 
@@ -99,14 +104,15 @@ export function Sidebar({
                             <NavItem
                                 icon={<LayoutGrid className="w-4 h-4" />}
                                 label="All Assets"
-                                active={currentFolder === null && filterType === 'all'}
-                                onClick={() => { onNavigate(null); onClose?.(); }}
+                                active={view === 'gallery' && currentFolder === null && filterType === 'all'}
+                                onClick={() => { onSetView('gallery'); onNavigate(null); onClose?.(); }}
                             />
                             <NavItem
                                 icon={<ImageIcon className="w-4 h-4" />}
                                 label="Photos"
-                                active={currentFolder === null && filterType === 'photos'}
+                                active={view === 'gallery' && currentFolder === null && filterType === 'photos'}
                                 onClick={() => {
+                                    onSetView('gallery');
                                     onNavigate(null);
                                     onSetFilter('photos');
                                     onClose?.();
@@ -115,8 +121,9 @@ export function Sidebar({
                             <NavItem
                                 icon={<Video className="w-4 h-4" />}
                                 label="Videos"
-                                active={currentFolder === null && filterType === 'videos'}
+                                active={view === 'gallery' && currentFolder === null && filterType === 'videos'}
                                 onClick={() => {
+                                    onSetView('gallery');
                                     onNavigate(null);
                                     onSetFilter('videos');
                                     onClose?.();
@@ -125,12 +132,26 @@ export function Sidebar({
                             <NavItem
                                 icon={<FileText className="w-4 h-4" />}
                                 label="Documents"
-                                active={currentFolder === null && filterType === 'documents'}
+                                active={view === 'gallery' && currentFolder === null && filterType === 'documents'}
                                 onClick={() => {
+                                    onSetView('gallery');
                                     onNavigate(null);
                                     onSetFilter('documents');
                                     onClose?.();
                                 }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Developer Section */}
+                    <div>
+                        <p className="px-4 text-[12px] text-zinc-500 italic-display tracking-wider mb-2 opacity-70">Tools</p>
+                        <div className="space-y-1">
+                            <NavItem
+                                icon={<Cpu className="w-4 h-4" />}
+                                label="Developer Hub"
+                                active={view === 'developer'}
+                                onClick={() => { onSetView('developer'); onClose?.(); }}
                             />
                         </div>
                     </div>
@@ -146,7 +167,7 @@ export function Sidebar({
                                 parentId={null}
                                 level={0}
                                 currentFolderId={currentFolder?.id}
-                                onNavigate={(f) => { onNavigate(f); onClose?.(); }}
+                                onNavigate={(f) => { onSetView('gallery'); onNavigate(f); onClose?.(); }}
                                 onDeleteFolder={onDeleteFolder}
                             />
                         </div>
