@@ -27,7 +27,7 @@ const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200 MB
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import busboy from 'busboy';
-import { getMetadata } from '@/lib/image-processing';
+import { getMetadata, ensureBrowserCompatible } from '@/lib/image-processing';
 import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -239,6 +239,20 @@ export async function POST(req: NextRequest) {
             mimeType = extMimeMap[ext] || mimeType || 'application/octet-stream';
         }
 
+        // ── HEIC/HEIF Compatibility Layer ─────────────────────────────────────
+        if (mimeType === 'image/heic' || mimeType === 'image/heif' || fileName.toLowerCase().endsWith('.heic') || fileName.toLowerCase().endsWith('.heif')) {
+            log('info', 'HEIC/HEIF detected, initiating conversion', { fileName });
+            const compat = await ensureBrowserCompatible(buffer);
+            if (compat.wasConverted) {
+                buffer = compat.buffer;
+                mimeType = 'image/jpeg';
+                // Update filename to .jpg
+                const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+                fileName = `${nameWithoutExt || 'IMG'}.jpg`;
+                log('info', 'Conversion successful', { newFileName: fileName, bytes: buffer.length });
+            }
+        }
+
         if (!mimeType.startsWith('image/') && !mimeType.startsWith('video/')) {
             return NextResponse.json(
                 { error: `Unsupported file type: ${mimeType}. Only image and video files are accepted.` },
@@ -272,7 +286,23 @@ export async function POST(req: NextRequest) {
 
         log('info', 'Telegram upload complete', { isChunked: telegramResult.isChunked, chunkCount: telegramResult.chunkCount });
 
-        // ── Save metadata to Supabase ──────────────────────────────────────
+        // ── Final Guard: Check limit one last time before DB insert ────────
+        // This prevents race conditions where multiple parallel uploads slip through.
+        if (user.role === 'DEMO') {
+            const { count: finalCount } = await supabaseAdmin
+                .from('assets')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', user.id);
+            
+            if ((finalCount || 0) >= DEMO_LIMITS.MAX_UPLOADS) {
+                log('warn', 'Trial limit reached during final check', { userId: user.id });
+                return NextResponse.json(
+                    { error: `Trial limit reached. Please delete your existing upload to try another one.` },
+                    { status: 403 }
+                );
+            }
+        }
+
         const id = uuidv4();
         const chatId = process.env.TELEGRAM_STORAGE_CHAT_ID!;
 

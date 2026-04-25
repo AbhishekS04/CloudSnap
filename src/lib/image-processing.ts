@@ -81,6 +81,35 @@ export async function processImage(
 }
 
 /**
+ * ensureBrowserCompatible
+ * Automatically detects HEIC/HEIF and converts to JPEG for web compatibility.
+ */
+export async function ensureBrowserCompatible(buffer: Buffer): Promise<{ buffer: Buffer, mimeType: string, wasConverted: boolean }> {
+    try {
+        const metadata = await sharp(buffer).metadata();
+        const format = metadata.format as string;
+        
+        if (format === 'heif' || format === 'heic') {
+            const converted = await sharp(buffer)
+                .rotate() // Auto-rotate based on EXIF
+                .jpeg(QUALITY_SETTINGS.jpeg)
+                .toBuffer();
+            
+            return { buffer: converted, mimeType: 'image/jpeg', wasConverted: true };
+        }
+        
+        return { 
+            buffer, 
+            mimeType: metadata.format ? `image/${metadata.format}` : 'application/octet-stream', 
+            wasConverted: false 
+        };
+    } catch (err) {
+        console.error('Compatibility check failed:', err);
+        return { buffer, mimeType: 'application/octet-stream', wasConverted: false };
+    }
+}
+
+/**
  * getMetadata
  * Helper to get basic info of the original file
  */
