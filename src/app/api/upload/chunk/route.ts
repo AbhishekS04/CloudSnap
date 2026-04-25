@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             fileId: result.fileId,
+            messageId: result.messageId,
             size:   result.fileSize,
         });
 

@@ -96,7 +96,8 @@ export async function GET(
       'Accept-Ranges':               'bytes',
     };
 
-    const needsTransform = isImage && (requestedWidth || outputFormat);
+    const isHEIC       = mimeType === 'image/heic' || mimeType === 'image/heif' || asset.original_name?.toLowerCase().endsWith('.heic') || asset.original_name?.toLowerCase().endsWith('.heif');
+    const needsTransform = isImage && (requestedWidth || outputFormat || isHEIC);
     const rangeHeader    = req.headers.get('range');
 
     // ── 3. L1/L2 Cache Check — Final Output ──────────────────────────────
@@ -249,8 +250,13 @@ export async function GET(
       switch (fmt) {
         case 'avif': pipeline = pipeline.avif({ quality: requestedQuality }); break;
         case 'jpeg': pipeline = pipeline.jpeg({ quality: requestedQuality, mozjpeg: true }); break;
-        case 'png':  pipeline = pipeline.png(); break; // PNG: quality param doesn't help
+        case 'png':  pipeline = pipeline.png(); break; 
         default:     pipeline = pipeline.webp({ quality: requestedQuality });
+      }
+
+      // Special handling for HEIC: ensure orientation and format
+      if (isHEIC) {
+          pipeline = pipeline.rotate(); // Auto-rotate iPhone photos
       }
 
       outputBuffer = await pipeline.toBuffer();

@@ -318,6 +318,7 @@ export async function POST(req: NextRequest) {
                 duration:           duration,
                 original_size:      buffer.length,
                 telegram_file_ids:  telegramResult.fileIds,
+                telegram_message_ids: telegramResult.messageIds,
                 telegram_chat_id:   chatId,
                 is_chunked:         telegramResult.isChunked,
                 chunk_count:        telegramResult.chunkCount,

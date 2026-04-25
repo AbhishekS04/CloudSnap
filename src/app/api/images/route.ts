@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireAuth } from '@/lib/auth';
+import { deleteFromTelegram } from '@/lib/telegram';
 import { DEMO_STARTER_ASSET_IDS } from '@/lib/demo-config';
 
 export const dynamic = 'force-dynamic';
@@ -75,10 +76,22 @@ export async function DELETE(req: Request) {
 
         if (fetchError || !asset) return NextResponse.json({ success: true });
 
-        // Security check for Demo users
         if (user.role === 'DEMO') {
             if (asset.user_id !== user.id) {
                 return NextResponse.json({ error: 'You do not have permission to delete this starter asset.' }, { status: 403 });
+            }
+        }
+
+        // ── Physical Deletion from Telegram ───────────────────────────────
+        const messageIds = asset.telegram_message_ids;
+        if (Array.isArray(messageIds) && messageIds.length > 0) {
+            console.log(`[SyncDelete] Deleting ${messageIds.length} messages from Telegram for asset ${id}`);
+            // Fire and forget or await? Awaiting ensures sync but takes longer. 
+            // Since it's a background process, we'll await but wrap in try/catch.
+            try {
+                await deleteFromTelegram(messageIds);
+            } catch (err) {
+                console.error('[SyncDelete] Failed to delete from Telegram:', err);
             }
         }
 

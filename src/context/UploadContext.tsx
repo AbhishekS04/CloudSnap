@@ -129,6 +129,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     }
 
     const telegramFileIds: string[] = [];
+    const telegramMessageIds: number[] = [];
 
     // Step 2: Upload Chunks
     for (let i = 0; i < totalChunks; i++) {
@@ -162,8 +163,9 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         throw new Error(errData.error || `Chunk ${i} failed`);
       }
 
-      const { fileId } = await res.json();
+      const { fileId, messageId } = await res.json();
       telegramFileIds[i] = fileId;
+      telegramMessageIds[i] = messageId;
 
       uploadedSize += chunk.size;
       const elapsed = (Date.now() - startTime) / 1000;
@@ -187,6 +189,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         mimeType: file.type,
         size: file.size,
         telegramFileIds,
+        telegramMessageIds,
         isChunked: totalChunks > 1,
         folderId,
       }),

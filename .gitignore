@@ -44,6 +44,9 @@ scripts/debug_db.js
 scripts/debug_deep.js
 scripts/temp_*
 inspect_api.js
+check_sharp.js
+read_telegram.js
+telegram.ts.stuck
 
 # Graphify & Research Tools
 .agent

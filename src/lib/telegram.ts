@@ -1,6 +1,6 @@
 /**
  * telegram.ts
- * CloudSnap — Telegram as Storage Engine
+ * CloudSnap - Telegram as Storage Engine
  *
  * Provides helpers for:
  * - Uploading files to a private Telegram channel (single or chunked)
@@ -13,29 +13,31 @@ const CHAT_ID   = process.env.TELEGRAM_STORAGE_CHAT_ID!;
 // Telegram Bot API base URL
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// Telegram's getFile API can only serve files ≤ 20MB.
+// Telegram's getFile API can only serve files <= 20MB.
 // Vercel's Serverless Function limit is 4.5MB.
 // We use 4MB chunks to stay safely under BOTH limits.
 export const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // Types
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 export interface TelegramUploadResult {
   fileId: string;
   fileSize: number;
+  messageId: number;
 }
 
 export interface TelegramChunkedUploadResult {
   fileIds: string[];
+  messageIds: number[];
   isChunked: boolean;
   chunkCount: number;
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // Core: Get a direct download URL from a file_id
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
  * Resolves a Telegram file_id to a direct HTTPS download URL.
@@ -54,9 +56,40 @@ export async function getTelegramFileUrl(fileId: string): Promise<string> {
   return `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
 }
 
-// ─────────────────────────────────────────────
+/**
+ * Deletes one or more messages from the Telegram storage channel.
+ */
+export async function deleteFromTelegram(messageIds: number[]): Promise<void> {
+  if (!messageIds || messageIds.length === 0) return;
+
+  try {
+    // Telegram has a deleteMessages API for bulk deletion (up to 100 messages)
+    const res = await fetch(`${TG_API}/deleteMessages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        message_ids: messageIds,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.warn(`[Telegram] Bulk delete failed, trying fallback: ${text}`);
+      
+      // Fallback: Delete one by one if bulk delete fails
+      for (const id of messageIds) {
+        await fetch(`${TG_API}/deleteMessage?chat_id=${CHAT_ID}&message_id=${id}`);
+      }
+    }
+  } catch (err) {
+    console.error('[Telegram] Deletion error:', err);
+  }
+}
+
+// ---------------------------------------------
 // Download: Single file
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
  * Downloads a single file from Telegram by file_id.
@@ -85,9 +118,9 @@ export async function getTelegramStream(fileId: string): Promise<ReadableStream<
   return res.body as ReadableStream<Uint8Array>;
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // Download: Chunked (fetches all chunks in parallel and joins them)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
  * Downloads multiple chunks from Telegram sequentially and
@@ -102,14 +135,14 @@ export async function downloadChunkedFromTelegram(fileIds: string[]): Promise<Bu
   return Buffer.concat(buffers);
 }
 
-// ─────────────────────────────────────────────
-// Upload: Single file (≤ 39MB)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
+// Upload: Single file (<= 39MB)
+// ---------------------------------------------
 
 /**
  * Uploads a single file buffer to the configured Telegram channel.
  * Uses sendDocument so any file type is accepted.
- * Returns the Telegram file_id.
+ * Returns the Telegram file_id and message_id.
  */
 export async function uploadToTelegram(
   buffer: Buffer,
@@ -127,7 +160,7 @@ export async function uploadToTelegram(
   if (caption) {
     formData.append('caption', caption);
   }
-  // Disable notifications — this is a silent storage channel
+  // Disable notifications - this is a silent storage channel
   formData.append('disable_notification', 'true');
 
   const res = await fetch(`${TG_API}/sendDocument`, {
@@ -146,41 +179,39 @@ export async function uploadToTelegram(
     throw new Error(`Telegram API error: ${JSON.stringify(data)}`);
   }
 
-  // Telegram auto-classifies files: MP4→video, GIF→animation, images→photo, etc.
-  // We must check all possible media fields to find the file_id.
   const result = data.result;
   const mediaObj =
-    result.document   ??  // generic file / most formats
-    result.video      ??  // MP4, MOV, MKV…
-    result.animation  ??  // GIF, WebM animations
-    result.audio      ??  // MP3, OGG audio
+    result.document   ?? 
+    result.video      ?? 
+    result.animation  ?? 
+    result.audio      ?? 
     result.voice      ??
     result.video_note ??
     result.sticker    ??
     (Array.isArray(result.photo)
-      ? result.photo[result.photo.length - 1]  // photo → array, take largest
+      ? result.photo[result.photo.length - 1] 
       : null);
 
   if (!mediaObj || !mediaObj.file_id) {
-    // Log the full result for debugging
     console.error('[Telegram] Unexpected result shape:', JSON.stringify(result));
-    throw new Error(`Telegram returned an unexpected result: no file_id found. Full result: ${JSON.stringify(result)}`);
+    throw new Error(`Telegram returned an unexpected result: no file_id found.`);
   }
 
   return {
     fileId: mediaObj.file_id,
     fileSize: mediaObj.file_size ?? buffer.length,
+    messageId: result.message_id,
   };
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // Upload: Chunked (> 39MB)
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
- * Splits a large buffer into 39MB chunks and uploads each chunk
- * to Telegram sequentially (to avoid rate limits).
- * Returns all file_ids in order.
+ * Splits a large buffer into chunks and uploads each chunk
+ * to Telegram sequentially.
+ * Returns all file_ids and message_ids in order.
  */
 export async function uploadChunkedToTelegram(
   buffer: Buffer,
@@ -191,13 +222,13 @@ export async function uploadChunkedToTelegram(
 
   const totalChunks = Math.ceil(buffer.length / CHUNK_SIZE);
   const fileIds: string[] = [];
+  const messageIds: number[] = [];
 
   for (let i = 0; i < totalChunks; i++) {
     const start = i * CHUNK_SIZE;
     const end   = Math.min(start + CHUNK_SIZE, buffer.length);
     const chunk = buffer.subarray(start, end);
 
-    // Name each chunk clearly so they can be identified if needed
     const chunkName = `${filename}.part${String(i + 1).padStart(3, '0')}`;
     const chunkCaption = baseCaption 
       ? `${baseCaption}\n[Part ${i + 1}/${totalChunks}]`
@@ -205,25 +236,25 @@ export async function uploadChunkedToTelegram(
 
     const result = await uploadToTelegram(chunk, chunkName, 'application/octet-stream', chunkCaption);
     fileIds.push(result.fileId);
+    messageIds.push(result.messageId);
 
-
-    console.log(`[Telegram] Uploaded chunk ${i + 1}/${totalChunks} → ${result.fileId}`);
+    console.log(`[Telegram] Uploaded chunk ${i + 1}/${totalChunks} -> MSG:${result.messageId}`);
   }
 
   return {
     fileIds,
+    messageIds,
     isChunked: true,
     chunkCount: totalChunks,
   };
 }
 
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 // Smart Upload: auto-decides single vs chunked
-// ─────────────────────────────────────────────
+// ---------------------------------------------
 
 /**
  * Main entry point for all CloudSnap uploads.
- * Automatically decides whether to chunk based on file size.
  */
 export async function smartUploadToTelegram(
   buffer: Buffer,
@@ -233,16 +264,14 @@ export async function smartUploadToTelegram(
 ): Promise<TelegramChunkedUploadResult> {
 
   if (buffer.length > CHUNK_SIZE) {
-    console.log(`[Telegram] File is ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using chunked upload`);
     return uploadChunkedToTelegram(buffer, filename, mimeType, caption);
   }
 
-  console.log(`[Telegram] File is ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using single upload`);
   const result = await uploadToTelegram(buffer, filename, mimeType, caption);
   return {
     fileIds: [result.fileId],
+    messageIds: [result.messageId],
     isChunked: false,
     chunkCount: 1,
   };
-
 }
