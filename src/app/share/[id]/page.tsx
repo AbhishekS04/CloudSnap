@@ -1,0 +1,62 @@
+import { Metadata } from 'next';
+import { supabaseAdmin } from '@/lib/supabase-server';
+import { notFound } from 'next/navigation';
+import { SharePageClient } from '@/app/share/[id]/SharePageClient';
+import { formatBytes } from '@/lib/utils';
+
+interface PageProps {
+    params: Promise<{ id: string }>;
+}
+
+async function getAsset(id: string) {
+    const { data: asset, error } = await supabaseAdmin
+        .from('assets')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    if (error || !asset) return null;
+    return asset;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { id } = await params;
+    const asset = await getAsset(id);
+
+    if (!asset) return { title: 'Asset Not Found | CloudSnap' };
+
+    const title = `${asset.original_name} | CloudSnap`;
+    const description = `Shared via CloudSnap • ${formatBytes(asset.original_size)} • ${asset.mime_type}`;
+    // Use the CDN for the OG image with optimal dimensions for Discord/Slack
+    const ogImage = `/api/cdn/${id}?w=1200&fmt=webp`;
+
+    return {
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            images: [{ url: ogImage, width: 1200, height: 630 }],
+            type: 'website',
+        },
+        twitter: {
+            card: 'summary_large_image',
+            title,
+            description,
+            images: [ogImage],
+        },
+    };
+}
+
+export default async function SharePage({ params }: PageProps) {
+    const { id } = await params;
+    const asset = await getAsset(id);
+
+    if (!asset) notFound();
+
+    return (
+        <main className="min-h-screen bg-zinc-950 text-white selection:bg-indigo-500/30">
+            <SharePageClient asset={asset} />
+        </main>
+    );
+}

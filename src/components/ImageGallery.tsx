@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { Copy, Trash2, Check, ExternalLink, Download, FileText } from 'lucide-react';
+import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
@@ -104,8 +104,9 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         e.stopPropagation();
         e.preventDefault();
         try {
-            const absoluteUrl = new URL(getUrl(), window.location.origin).href;
-            await navigator.clipboard.writeText(absoluteUrl);
+            // Copy the public share page URL
+            const shareUrl = `${window.location.origin}/share/${image.id}`;
+            await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -316,8 +317,8 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                             className="group/btn relative w-full overflow-hidden rounded-2xl bg-white p-3 font-bold text-black transition-all hover:bg-zinc-100"
                         >
                             <span className="relative z-10 flex items-center justify-center gap-2 text-sm">
-                                {copied ? <Check className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
-                                {copied ? 'Project Link Copied' : 'Share Asset'}
+                                {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+                                {copied ? 'Link Copied' : 'Share Asset'}
                             </span>
                         </button>
                     </div>
