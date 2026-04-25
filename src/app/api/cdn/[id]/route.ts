@@ -84,10 +84,11 @@ export async function GET(
     const mimeType     = asset.mime_type as string;
     const isImage      = mimeType.startsWith('image/');
     const isVideo      = mimeType.startsWith('video/');
+    const isDownload    = searchParams.get('dl') === '1';
     const safeFilename = encodeURIComponent(asset.original_name as string || `asset-${id}`);
 
     const baseHeaders: Record<string, string> = {
-      'Content-Disposition':         `inline; filename="${safeFilename}"`,
+      'Content-Disposition':         `${isDownload ? 'attachment' : 'inline'}; filename="${safeFilename}"`,
       'Cache-Control':               'public, s-maxage=31536000, stale-while-revalidate=59, immutable',
       'Access-Control-Allow-Origin': '*',
       'X-CloudSnap-Asset-Id':        id,

@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { Copy, Trash2, Check, ExternalLink } from 'lucide-react';
+import { Copy, Trash2, Check, ExternalLink, Download } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
@@ -73,40 +73,21 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
     };
 
     const getUrl = () => {
-        if (isVideo && format === 'compressed') {
-            return image.md_url || '';
+        const baseUrl = image.original_url || `/api/cdn/${image.id}`;
+
+        if (isVideo) {
+            return format === 'compressed' ? (image.md_url || baseUrl) : baseUrl;
         }
 
-        // Direct Map Strategy - Much safer than string splitting
-        if (format === 'original') {
-            if (image.original_url) return image.original_url;
+        if (format === 'original') return baseUrl;
 
-            // Reconstruction for fetched images
-            if (image.md_url) {
-                const parts = image.md_url.split('/webp/');
-                if (parts.length === 2) {
-                    const base = parts[0];
-                    const ext = image.original_ext || 'jpg';
-                    return `${base}/original/${image.id}.${ext}`;
-                }
-            }
-            return '';
-        }
-
-        if (format === 'webp') {
-            // Type-safe access for webp sizes
-            const key = `${size}_url` as keyof ImageRecord;
-            // @ts-ignore
-            return image[key] || image.md_url || image.sm_url;
-        }
-
-        if (format === 'avif' && image.avif) {
-            const key = `${size}`;
-            return image.avif.urls?.[key] || image.avif.urls?.md;
-        }
-
-        // Fallback
-        return image.md_url || image.sm_url || image.original_url || '';
+        // Construct dynamic transform URL for optimized formats
+        const width = size === 'lg' ? '' : size === 'md' ? '1200' : size === 'sm' ? '600' : '200';
+        const params = new URLSearchParams();
+        if (width) params.set('w', width);
+        params.set('fmt', format === 'avif' ? 'avif' : 'webp');
+        
+        return `${baseUrl}?${params.toString()}`;
     };
 
     // Helper for Preview Image Source (Optimize for Speed)
@@ -128,6 +109,19 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
         } catch (err) {
             console.error('Copy failed', err);
         }
+    };
+
+    const handleDownload = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const url = getUrl();
+        const downloadUrl = url.includes('?') ? `${url}&dl=1` : `${url}?dl=1`;
+        // Create a temporary link and click it to trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = image.original_name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     // Drag Start Handler
@@ -153,7 +147,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
             bytes = image.avif.sizes?.[size] || 0;
         }
 
-        if (!bytes) return 'Unknown Size';
+        if (!bytes) return 'CDN Optimized';
 
         return (bytes / 1024).toFixed(2) + ' KB';
     };
@@ -204,7 +198,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                         <img
                             src={getPreviewSrc()}
                             alt={image.original_name}
-                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
+                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105"
                             loading="lazy"
                             draggable={false}
                         />
@@ -221,45 +215,60 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                         </span>
                     </div>
 
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
-                        className="p-2 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-red-400 rounded-full transition-all hover:scale-110 opacity-0 group-hover:opacity-100"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-300">
+                        <button
+                            onClick={handleDownload}
+                            className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-white rounded-full transition-all active:scale-95 lg:hover:scale-110"
+                            title="Download"
+                        >
+                            <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
+                            className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-red-400 rounded-full transition-all active:scale-95 lg:hover:scale-110"
+                            title="Delete"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Expand Area on Hover - For videos we make it non-blocking */}
                 <div
                     className={cn(
-                        "absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-6 pointer-events-none",
-                        isHovered && "opacity-100"
+                        "absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent lg:bg-black/40 lg:backdrop-blur-[2px] opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-5 sm:p-6 pointer-events-auto lg:pointer-events-none",
+                        isHovered && "lg:opacity-100 lg:pointer-events-auto"
                     )}
                 >
-                    <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500 pointer-events-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex flex-col gap-1">
-                                <span className="text-lg font-bold text-white leading-tight truncate max-w-[150px]" title={image.original_name}>
-                                    {truncateFileName(image.original_name, 20)}
+                    <div className="translate-y-0 lg:translate-y-4 lg:group-hover:translate-y-0 transition-transform duration-500 pointer-events-auto">
+                        <div className="flex flex-col gap-4 mb-5">
+                            <div className="flex flex-col gap-1.5">
+                                <span className="text-base sm:text-lg font-bold text-white leading-tight truncate" title={image.original_name}>
+                                    {truncateFileName(image.original_name, 22)}
                                 </span>
-                                <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-widest">
-                                    {image.width}x{image.height} • {getSizeDisplay()}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                                        {image.width}x{image.height}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                                        {getSizeDisplay()}
+                                    </span>
+                                </div>
                             </div>
 
-                            {/* Format Selector Pills */}
-                            <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl">
+                            {/* Format Selector Pills - Dedicated Row */}
+                            <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
                                 {isVideo ? (
                                     <>
                                         <button
                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
-                                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-wider transition-all ${format === 'original' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'original' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
                                         >
                                             RAW
                                         </button>
                                         <button
                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
-                                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-wider transition-all ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
                                         >
                                             COMP
                                         </button>
@@ -269,8 +278,7 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                                         <button
                                             key={fmt}
                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
-                                            className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-wider uppercase transition-all ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-300 hover:text-white'}`}
-                                            disabled={fmt === 'avif' && !image.avif}
+                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider uppercase transition-all whitespace-nowrap ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-300 hover:text-white'}`}
                                         >
                                             {fmt === 'original' ? 'RAW' : fmt}
                                         </button>
