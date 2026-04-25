@@ -40,7 +40,11 @@ interface SidebarProps {
     storageRefreshKey?: number;
     onSetView: (view: 'gallery' | 'developer') => void;
     view: 'gallery' | 'developer';
+    userRole?: 'ADMIN' | 'DEMO';
+    userUploadCount?: number;
 }
+
+
 
 export function Sidebar({
     folders,
@@ -56,8 +60,12 @@ export function Sidebar({
     className,
     storageRefreshKey,
     onSetView,
-    view
+    view,
+    userRole = 'DEMO',
+    userUploadCount = 0
 }: SidebarProps) {
+
+
     const { user } = useUser();
     
     // Lock body scroll when mobile sidebar is open
@@ -93,20 +101,41 @@ export function Sidebar({
             {/* Quick Actions */}
             <div className="px-4 mb-8">
                 <button
-                    onClick={() => { onUploadClick(); onClose?.(); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-white text-black hover:bg-zinc-200 rounded-2xl font-semibold text-sm transition-all shadow-lg shadow-white/5 active:scale-95 mb-3"
+                    onClick={() => { 
+                        if (userRole === 'DEMO' && userUploadCount >= 1) return;
+                        onUploadClick(); 
+                        onClose?.(); 
+                    }}
+                    className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-semibold text-sm transition-all shadow-lg active:scale-95 mb-3",
+                        (userRole === 'DEMO' && userUploadCount >= 1)
+                            ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50"
+                            : "bg-white text-black hover:bg-zinc-200 shadow-white/5"
+                    )}
+                    title={userRole === 'DEMO' && userUploadCount >= 1 ? "Trial limit reached (1 upload)" : ""}
                 >
                     <Plus className="w-5 h-5" />
-                    Upload Assets
+                    {userRole === 'DEMO' && userUploadCount >= 1 ? 'Limit Reached' : 'Upload Assets'}
                 </button>
                 <button
-                    onClick={() => { onCreateFolder(); onClose?.(); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-zinc-900 border border-zinc-800 text-white hover:bg-zinc-800 rounded-2xl font-medium text-sm transition-all active:scale-95"
+                    onClick={() => { 
+                        if (userRole === 'DEMO') return;
+                        onCreateFolder(); 
+                        onClose?.(); 
+                    }}
+                    className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-medium text-sm transition-all active:scale-95",
+                        userRole === 'DEMO'
+                            ? "bg-zinc-900/50 text-zinc-600 cursor-not-allowed border border-zinc-800/50"
+                            : "bg-zinc-900 border border-zinc-800 text-white hover:bg-zinc-800"
+                    )}
+                    title={userRole === 'DEMO' ? "Folder creation disabled in Demo" : ""}
                 >
-                    <FolderPlus className="w-5 h-5 text-indigo-400" />
+                    <FolderPlus className={cn("w-5 h-5", userRole === 'DEMO' ? "text-zinc-700" : "text-indigo-400")} />
                     New Folder
                 </button>
             </div>
+
 
             {/* Navigation Sections */}
             <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
@@ -178,14 +207,17 @@ export function Sidebar({
             </div>
 
             {/* Developer Section */}
-            <div className="px-4 mb-4">
-                <NavItem
-                    icon={<Cpu className="w-4 h-4" />}
-                    label="Developer Hub"
-                    active={view === 'developer'}
-                    onClick={() => { onSetView('developer'); onClose?.(); }}
-                />
-            </div>
+            {userRole === 'ADMIN' && (
+                <div className="px-4 mb-4">
+                    <NavItem
+                        icon={<Cpu className="w-4 h-4" />}
+                        label="Developer Hub"
+                        active={view === 'developer'}
+                        onClick={() => { onSetView('developer'); onClose?.(); }}
+                    />
+                </div>
+            )}
+
 
             {/* Storage Indicator */}
             <StorageIndicator storageRefreshKey={storageRefreshKey} />
@@ -199,11 +231,19 @@ export function Sidebar({
                         }
                     }} />
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">
-                            {user?.fullName || user?.username || 'User'}
-                        </p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-white truncate">
+                                {user?.fullName || user?.username || 'User'}
+                            </p>
+                            {userRole === 'DEMO' && (
+                                <span className="text-[9px] font-bold bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-full border border-indigo-500/30 uppercase tracking-tighter">
+                                    Trial
+                                </span>
+                            )}
+                        </div>
                         <p className="text-[10px] text-zinc-500 truncate">{user?.primaryEmailAddress?.emailAddress}</p>
                     </div>
+
                     <SignOutButton>
                         <button className="p-1.5 text-zinc-500 hover:text-white transition-colors">
                             <LogOut className="w-4 h-4" />

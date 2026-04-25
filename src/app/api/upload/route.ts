@@ -32,7 +32,8 @@ import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 
-import { requireAdmin } from '@/lib/auth';
+import { requireAuth, checkDemoLimit, DEMO_LIMITS } from '@/lib/auth';
+
 
 // ─────────────────────────────────────────────
 // Logging — structured JSON for Vercel log drain
@@ -76,7 +77,13 @@ function generateCleanName(mimeType: string, extension?: string): string {
 export async function POST(req: NextRequest) {
     log('info', 'Upload request started');
     try {
-        await requireAdmin();
+        const user = await requireAuth();
+
+        // ── Demo Limits Check ──────────────────────────────────────────────
+        const limitCheck = await checkDemoLimit(user);
+        if (!limitCheck.allowed) {
+            return NextResponse.json({ error: limitCheck.reason }, { status: 403 });
+        }
 
 
         let buffer: Buffer   = Buffer.alloc(0);
@@ -196,21 +203,25 @@ export async function POST(req: NextRequest) {
 
         // ── Server-side file size enforcement ─────────────────────────────────
         const isVideoMime = mimeType.startsWith('video/');
-        const sizeLimit   = isVideoMime ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
-        const sizeLabelMB = isVideoMime ? '200MB' : '50MB';
+        let sizeLimit = isVideoMime ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+        let sizeLabelMB = isVideoMime ? '200MB' : '50MB';
+
+        if (user.role === 'DEMO') {
+            sizeLimit = DEMO_LIMITS.MAX_SIZE_BYTES;
+            sizeLabelMB = `${DEMO_LIMITS.MAX_SIZE_BYTES / 1024 / 1024}MB`;
+        }
+
 
         if (buffer.length > sizeLimit) {
             const actualMB = (buffer.length / 1024 / 1024).toFixed(1);
             log('warn', 'File too large', { actualMB, limit: sizeLabelMB });
             return NextResponse.json(
-                { error: `File too large (${actualMB} MB). Maximum allowed: ${sizeLabelMB} for ${isVideoMime ? 'videos' : 'images'}.` },
+                { error: `File too large (${actualMB} MB). Maximum allowed: ${sizeLabelMB} for ${user.role === 'DEMO' ? 'Demo users' : (isVideoMime ? 'videos' : 'images')}.` },
                 { status: 413 },
             );
         }
 
         // ── Validate & normalize mime type ─────────────────────────────────────
-        // Accept ANY image/* or video/* mime type.
-        // Browsers/OS sometimes report blank or wrong mime types — fall back to extension.
         if (!mimeType || mimeType === 'application/octet-stream') {
             const ext = path.extname(fileName).toLowerCase().replace('.', '');
             const extMimeMap: Record<string, string> = {
@@ -246,14 +257,18 @@ export async function POST(req: NextRequest) {
                 width  = meta.width;
                 height = meta.height;
             } catch (_) {
-                // Non-fatal — dimensions just won't be stored
+                // Non-fatal
             }
         }
 
         // ── Upload to Telegram ─────────────────────────────────────────────
         log('info', 'Uploading to Telegram', { fileName, sizeMB: (buffer.length / 1024 / 1024).toFixed(2) });
 
-        const telegramResult = await smartUploadToTelegram(buffer, fileName, mimeType);
+        const roleLabel = user.role === 'ADMIN' ? '👑 ADMIN' : '👤 TRIAL';
+        const caption = `${roleLabel} | ${fileName}\nUser: ${user.email}`;
+        
+        const telegramResult = await smartUploadToTelegram(buffer, fileName, mimeType, caption);
+
 
         log('info', 'Telegram upload complete', { isChunked: telegramResult.isChunked, chunkCount: telegramResult.chunkCount });
 
@@ -265,6 +280,7 @@ export async function POST(req: NextRequest) {
             .from('assets')
             .insert({
                 id,
+                user_id:            user.id,
                 original_name:      fileName,
                 mime_type:          mimeType,
                 width:              width  || null,
@@ -293,7 +309,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             id,
             cdnUrl,
-            // Videos: plain URL (no image transforms). Images: optimized WebP variants.
             urls: {
                 original: cdnUrl,
                 thumb: isVideoAsset ? cdnUrl : `${cdnUrl}?w=200&fmt=webp`,
@@ -317,14 +332,9 @@ export async function POST(req: NextRequest) {
     } catch (error: any) {
         console.error('Upload API Error:', error);
         log('error', 'Upload handler fatal error', { error: error.message });
-        
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        
         return NextResponse.json(
             { error: error.message || 'Internal Server Error' },
-            { status: 500 },
+            { status: error.message.includes('Unauthorized') ? 401 : 500 },
         );
     }
 }

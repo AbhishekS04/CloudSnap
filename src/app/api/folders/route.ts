@@ -1,7 +1,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/auth';
+import { requireAuth, isUserAdmin } from '@/lib/auth';
+import { DEMO_FOLDERS } from '@/lib/demo-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,11 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function POST(req: NextRequest) {
     try {
-        await requireAdmin();
+        const user = await requireAuth();
+        if (user.role === 'DEMO') {
+            return NextResponse.json({ error: 'Folder creation is disabled in Demo Mode.' }, { status: 403 });
+        }
+
         const { name, parent_id } = await req.json();
 
         if (!name) {
@@ -18,8 +23,6 @@ export async function POST(req: NextRequest) {
         }
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-        // Ensure parent_id is either a valid UUID or null (never the string 'null')
         const cleanParentId = (parent_id && parent_id !== 'null') ? parent_id : null;
 
         const { data, error } = await supabase
@@ -29,7 +32,6 @@ export async function POST(req: NextRequest) {
             .single();
 
         if (error) throw error;
-
         return NextResponse.json(data);
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -38,8 +40,12 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
     try {
-        // Optional: Require admin if private
-        await requireAdmin();
+        const user = await requireAuth();
+
+        // Virtual Folders for Demo Users
+        if (user.role === 'DEMO') {
+            return NextResponse.json(DEMO_FOLDERS);
+        }
 
         const { searchParams } = new URL(req.url);
         const parent_id = searchParams.get('parent_id');
@@ -61,7 +67,6 @@ export async function GET(req: NextRequest) {
         }
 
         const { data, error } = await query;
-
         if (error) throw error;
 
         return NextResponse.json(data);
@@ -72,7 +77,11 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     try {
-        await requireAdmin();
+        const user = await requireAuth();
+        if (user.role === 'DEMO') {
+            return NextResponse.json({ error: 'Deletion is disabled in Demo Mode.' }, { status: 403 });
+        }
+
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
 
@@ -98,11 +107,11 @@ export async function DELETE(req: NextRequest) {
         if (folderError) throw folderError;
 
         if (imageCount && imageCount > 0) {
-            return NextResponse.json({ error: 'Cannot delete folder: It contains assets. Please move or delete them first.' }, { status: 400 });
+            return NextResponse.json({ error: 'Cannot delete folder: It contains assets.' }, { status: 400 });
         }
 
         if (childFolderCount && childFolderCount > 0) {
-            return NextResponse.json({ error: 'Cannot delete folder: It contains sub-folders. Please remove them first.' }, { status: 400 });
+            return NextResponse.json({ error: 'Cannot delete folder: It contains sub-folders.' }, { status: 400 });
         }
 
         const { error: deleteError } = await supabase
@@ -117,3 +126,4 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

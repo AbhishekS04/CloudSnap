@@ -1,20 +1,28 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
+import { DEMO_STARTER_ASSET_IDS } from '@/lib/demo-config';
 
-export const dynamic = 'force-dynamic'; // Ensure no caching for this route
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
     try {
-        await requireAdmin();
+        const user = await requireAuth();
         const { searchParams } = new URL(req.url);
         const limit = searchParams.get('limit');
-        const folder_id = searchParams.get('folder_id'); // New param
+        const folder_id = searchParams.get('folder_id');
 
         let query = supabaseAdmin
             .from('assets')
             .select('*')
             .order('created_at', { ascending: false });
+
+        // Virtual Logic for Demo Users
+        if (user.role === 'DEMO') {
+            // Filter: (Their own uploads) OR (The Starter Pack)
+            const idList = DEMO_STARTER_ASSET_IDS.map(id => `"${id}"`).join(',');
+            query = query.or(`user_id.eq.${user.id},id.in.(${idList})`);
+        }
 
         if (limit) {
             query = query.limit(parseInt(limit));
@@ -27,19 +35,11 @@ export async function GET(req: Request) {
         }
 
         const { data, error } = await query;
+        if (error) throw error;
 
-        if (error) {
-            throw error;
-        }
-
-        // Map the asset records to match the expected legacy ImageRecord structure
-        // so the frontend Gallery components still work without modification.
         const mappedData = data.map((asset: any) => {
             const isVideo = (asset.mime_type as string || '').startsWith('video/');
             const baseUrl = `/api/cdn/${asset.id}`;
-
-            // Videos must NOT have image transform params — sharp can't process video.
-            // Images get optimized variants with WebP conversion.
             return {
                 ...asset,
                 original_ext: asset.original_name?.split('.').pop() || (isVideo ? 'mp4' : 'jpg'),
@@ -51,19 +51,15 @@ export async function GET(req: Request) {
             };
         });
 
-
         return NextResponse.json(mappedData);
     } catch (error: any) {
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 500 });
     }
 }
 
 export async function DELETE(req: Request) {
     try {
-        await requireAdmin();
+        const user = await requireAuth();
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
 
@@ -71,36 +67,30 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: 'Image ID is required' }, { status: 400 });
         }
 
-        // 1. Get Asset Metadata to know what files to delete (from Telegram if possible, though currently we only track in DB)
-        const { data: image, error: fetchError } = await supabaseAdmin
+        const { data: asset, error: fetchError } = await supabaseAdmin
             .from('assets')
             .select('*')
             .eq('id', id)
             .single();
 
-        if (fetchError || !image) {
-            // Already deleted?
-            return NextResponse.json({ success: true });
+        if (fetchError || !asset) return NextResponse.json({ success: true });
+
+        // Security check for Demo users
+        if (user.role === 'DEMO') {
+            if (asset.user_id !== user.id) {
+                return NextResponse.json({ error: 'You do not have permission to delete this starter asset.' }, { status: 403 });
+            }
         }
 
-        // Note: Actual Telegram deletion is complicated because bots cannot delete files in channels after a period of time.
-        // For a full CDN, we just delete the database index, "orphaning" the file in Telegram.
-        // If you need strict deletion, you'd call the Telegram `deleteMessage` API using `image.telegram_chat_id` and `image.telegram_file_ids`.
-
-        // 4. Delete from DB
         const { error: dbError } = await supabaseAdmin
             .from('assets')
             .delete()
             .eq('id', id);
 
         if (dbError) throw dbError;
-
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error("Delete error:", error);
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 500 });
     }
 }
+

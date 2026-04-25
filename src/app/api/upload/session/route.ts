@@ -1,35 +1,21 @@
-/**
- * /api/upload/session — Upload Session Management
- *
- * POST: Create a new upload session. Returns a sessionId the client
- *       uses to track chunk progress across network failures.
- *
- * GET:  Fetch the current state of a session (how many chunks confirmed).
- *       The client uses this to skip already-uploaded chunks on resume.
- *
- * Sessions expire after 24 hours — stale rows are cleaned up automatically
- * via the Supabase `expires_at` column (add a scheduled job or just let them age out).
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAuth, checkDemoLimit } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
 // ── POST /api/upload/session ───────────────────────────────────────────────
-// Body: { fileName, fileSize, mimeType, totalChunks, folderId? }
-// Returns: { sessionId }
-
 export async function POST(req: NextRequest) {
     try {
-        await requireAdmin();
-
+        const user = await requireAuth();
         const { fileName, fileSize, mimeType, totalChunks, folderId } = await req.json();
 
-        // Log for debugging
-        console.log('[Session] Request:', { fileName, fileSize, mimeType, totalChunks, folderId });
+        // Enforcement: Check Demo Limits
+        const limitCheck = await checkDemoLimit(user, fileSize);
+        if (!limitCheck.allowed) {
+            return NextResponse.json({ error: limitCheck.reason }, { status: 403 });
+        }
 
         if (!fileName || totalChunks === undefined) {
             return NextResponse.json({ 
@@ -45,6 +31,7 @@ export async function POST(req: NextRequest) {
             .from('upload_sessions')
             .insert({
                 id:                   sessionId,
+                user_id:              user.id, // Store owner
                 file_name:            fileName,
                 file_size:            fileSize,
                 mime_type:            mimeType,
@@ -56,27 +43,23 @@ export async function POST(req: NextRequest) {
                 expires_at:           expiresAt,
             });
 
-        if (error) {
-            console.error('[Session] Create error:', error.message);
-            throw new Error(`Failed to create session: ${error.message}`);
-        }
+        if (error) throw new Error(`Failed to create session: ${error.message}`);
 
         return NextResponse.json({ sessionId });
 
     } catch (error: any) {
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json({ error: error.message || 'Failed to create session' }, { status: 500 });
+        const isUnauthorized = error.message?.includes('Unauthorized');
+        return NextResponse.json(
+            { error: error.message || 'Failed to create session' }, 
+            { status: isUnauthorized ? 401 : 500 }
+        );
     }
 }
 
 // ── GET /api/upload/session?sessionId=xxx ─────────────────────────────────
-// Returns: { sessionId, confirmedChunkIds, totalChunks, status, fileName, folderId }
-
 export async function GET(req: NextRequest) {
     try {
-        await requireAdmin();
+        await requireAuth();
 
         const { searchParams } = new URL(req.url);
         const sessionId = searchParams.get('sessionId');
@@ -87,7 +70,7 @@ export async function GET(req: NextRequest) {
 
         const { data, error } = await supabaseAdmin
             .from('upload_sessions')
-            .select('id, file_name, file_size, mime_type, folder_id, total_chunks, confirmed_chunk_ids, status, expires_at')
+            .select('*')
             .eq('id', sessionId)
             .single();
 
@@ -95,11 +78,9 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Session not found or expired' }, { status: 404 });
         }
 
-        // Check expiry manually (belt-and-suspenders)
         if (new Date(data.expires_at) < new Date()) {
-            // Clean up expired session
             await supabaseAdmin.from('upload_sessions').delete().eq('id', sessionId);
-            return NextResponse.json({ error: 'Session expired — please start a new upload' }, { status: 410 });
+            return NextResponse.json({ error: 'Session expired' }, { status: 410 });
         }
 
         return NextResponse.json({
@@ -115,20 +96,18 @@ export async function GET(req: NextRequest) {
         });
 
     } catch (error: any) {
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json({ error: error.message || 'Failed to fetch session' }, { status: 500 });
+        const isUnauthorized = error.message?.includes('Unauthorized');
+        return NextResponse.json(
+            { error: error.message || 'Failed to fetch session' }, 
+            { status: isUnauthorized ? 401 : 500 }
+        );
     }
 }
 
-// ── PATCH /api/upload/session — Mark session complete or failed ────────────
-// Body: { sessionId, status: 'complete' | 'failed' }
-
+// ── PATCH /api/upload/session ────────────────────────────────────────────
 export async function PATCH(req: NextRequest) {
     try {
-        await requireAdmin();
-
+        await requireAuth();
         const { sessionId, status } = await req.json();
 
         if (!sessionId || !['complete', 'failed'].includes(status)) {
@@ -145,9 +124,11 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ success: true });
 
     } catch (error: any) {
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const isUnauthorized = error.message?.includes('Unauthorized');
+        return NextResponse.json(
+            { error: error.message || 'Internal error' }, 
+            { status: isUnauthorized ? 401 : 500 }
+        );
     }
 }
+

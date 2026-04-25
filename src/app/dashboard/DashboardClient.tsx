@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { UploadZone } from '@/components/UploadZone';
 import { ImageGallery } from '@/components/ImageGallery';
+import { toast } from 'react-hot-toast';
+
 import { ImageRecord, Folder } from '@/lib/types';
 import { FolderPlus, ChevronRight, Home, Cloud, Menu, X, Plus, Cpu } from 'lucide-react';
 import { useUser } from "@clerk/nextjs";
@@ -17,7 +19,15 @@ import RefreshIcon from '@/components/icons/RefreshIcon';
 import { AnimatedIconHandle } from '@/components/icons/types';
 import { useUpload } from '@/context/UploadContext';
 
-export default function DashboardClient() {
+export default function DashboardClient({ 
+    userRole = 'DEMO',
+    initialUploadCount = 0 
+}: { 
+    userRole?: 'ADMIN' | 'DEMO',
+    initialUploadCount?: number
+}) {
+
+
     const [images, setImages] = useState<(ImageRecord & { avif?: any })[]>([]);
     const [allFolders, setAllFolders] = useState<Folder[]>([]);
     const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
@@ -30,8 +40,15 @@ export default function DashboardClient() {
     const { startUploads, uploads } = useUpload();
     const isUploadingGlobal = uploads.some(u => u.status === 'uploading');
 
+    // Trial Limit Calculation
+    // Use the maximum of (live image count) and (initial server count if still loading)
+    const userUploads = images.filter(img => img.user_id === user?.id);
+    const effectiveCount = loading ? initialUploadCount : userUploads.length;
+    const hasReachedTrialLimit = userRole === 'DEMO' && effectiveCount >= 1;
+
     // Storage refresh key
     const [storageRefreshKey, setStorageRefreshKey] = useState(0);
+
 
     // Auto-refresh state
     const refreshIconRef = useRef<AnimatedIconHandle>(null);
@@ -254,10 +271,18 @@ export default function DashboardClient() {
 
         // 1. Handle Real Files
         if (validFiles.length > 0) {
+            if (hasReachedTrialLimit) {
+                toast.error("Trial limit reached. Please delete your test upload to try another one.");
+                return;
+            }
             startUploads(validFiles);
         } 
         // 2. Handle URL Drops
         else if (url) {
+            if (hasReachedTrialLimit) {
+                toast.error("Trial limit reached. Please delete your test upload to try another one.");
+                return;
+            }
             try {
                 const res = await fetch(url);
                 const blob = await res.blob();
@@ -273,6 +298,7 @@ export default function DashboardClient() {
                 console.error('Failed to fetch dropped URL', err);
             }
         }
+
     }, [startUploads]);
 
     useEffect(() => {
@@ -309,12 +335,21 @@ export default function DashboardClient() {
 
     return (
         <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-indigo-500/30">
+
+            {/* Global background effects */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px]" />
+            </div>
+
             <Sidebar
                 isOpen={isSidebarOpen}
                 onClose={() => setIsSidebarOpen(false)}
                 folders={allFolders}
                 currentFolder={currentFolder}
                 filterType={filterType}
+                userRole={userRole}
+                userUploadCount={effectiveCount}
                 onNavigate={(folder) => {
                     setView('gallery');
                     setCurrentFolder(folder);
@@ -324,10 +359,19 @@ export default function DashboardClient() {
                 onSetView={setView}
                 view={view}
                 onCreateFolder={() => setShowFolderModal(true)}
-                onUploadClick={() => window.dispatchEvent(new CustomEvent('open-upload'))}
+                onUploadClick={() => {
+                    if (hasReachedTrialLimit) {
+                        toast.error("Trial limit reached. Please delete your test upload to try another one.");
+                        return;
+                    }
+                    window.dispatchEvent(new CustomEvent('open-upload'));
+                }}
                 onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}
                 storageRefreshKey={storageRefreshKey}
             />
+
+
+
 
             <div className="lg:pl-72 flex flex-col min-h-screen">
                 <header className="sticky top-0 z-30 border-b border-zinc-800/40 bg-zinc-950/80 backdrop-blur-xl">
@@ -421,7 +465,11 @@ export default function DashboardClient() {
                                     <ImageGallery
                                         images={images}
                                         filterType={filterType}
+                                        userRole={userRole}
+                                        currentUserId={user?.id}
                                         folders={allFolders.filter(f => f.parent_id === (currentFolder?.id || null))}
+
+
                                         onDelete={(id) => {
                                             const img = images.find(i => i.id === id);
                                             confirmDelete('image', id, img?.original_name || 'Asset');

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
     try {
-        await requireAdmin();
+        const user = await requireAuth();
 
         const body = await req.json();
         const { 
@@ -21,14 +21,11 @@ export async function POST(req: NextRequest) {
             height 
         } = body;
 
-        // Log for debugging
-        console.log('[Assets API] Finalizing:', { name, mimeType, size, telegramFileIdsCount: telegramFileIds?.length, isChunked, folderId });
-
         if (!name) {
             return NextResponse.json({ error: 'Missing required metadata: name is required' }, { status: 400 });
         }
         if (!telegramFileIds || !Array.isArray(telegramFileIds) || telegramFileIds.length === 0) {
-            return NextResponse.json({ error: 'Missing required metadata: telegramFileIds is required and must be a non-empty array' }, { status: 400 });
+            return NextResponse.json({ error: 'Missing required metadata: telegramFileIds is required' }, { status: 400 });
         }
 
         const id = uuidv4();
@@ -38,6 +35,7 @@ export async function POST(req: NextRequest) {
             .from('assets')
             .insert({
                 id,
+                user_id:            user.id, // Track ownership
                 original_name:      name,
                 mime_type:          mimeType,
                 width:              width  || null,
@@ -51,13 +49,10 @@ export async function POST(req: NextRequest) {
                 created_at:         new Date().toISOString(),
             });
 
-        if (dbError) {
-            throw new Error(`Failed to save metadata: ${dbError.message}`);
-        }
+        if (dbError) throw new Error(`Failed to save metadata: ${dbError.message}`);
 
-        // Return the full mapped record so frontend can update instantly without re-fetching
-        const isVideo = (mimeType as string || '').startsWith('video/');
         const baseUrl = `/api/cdn/${id}`;
+        const isVideo = (mimeType as string || '').startsWith('video/');
         
         const mappedAsset = {
             id,
@@ -87,14 +82,11 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error('Finalization Error:', error);
-
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
+        const isUnauthorized = error.message?.includes('Unauthorized');
         return NextResponse.json(
             { error: error.message || 'Failed to finalize asset' },
-            { status: 500 }
+            { status: isUnauthorized ? 401 : 500 }
         );
     }
 }
+

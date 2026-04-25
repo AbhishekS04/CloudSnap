@@ -1,25 +1,17 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
+import { DEMO_STARTER_ASSET_IDS } from '@/lib/demo-config';
 
 export const dynamic = 'force-dynamic';
 
-// Storage quota in bytes (1 TB - near infinite for personal use)
-const STORAGE_QUOTA_BYTES = 1024 * 1024 * 1024 * 1024;
+const STORAGE_QUOTA_BYTES = 1024 * 1024 * 1024 * 1024; // 1 TB for Admin
+const GUEST_QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB for Demo
 
 export async function GET() {
     try {
-        await requireAdmin();
-        // Fetch all assets from the database
-        const { data: images, error } = await supabaseAdmin
-            .from('assets')
-            .select('original_size');
+        const user = await requireAuth();
 
-        if (error) {
-            throw error;
-        }
-
-        // Format bytes to human-readable format
         const formatBytes = (bytes: number): string => {
             if (bytes === 0) return '0 B';
             const k = 1024;
@@ -28,22 +20,35 @@ export async function GET() {
             return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
         };
 
-        if (!images || images.length === 0) {
+        // Virtual Usage for Demo Users
+        if (user.role === 'DEMO') {
+            const { data: images } = await supabaseAdmin
+                .from('assets')
+                .select('original_size')
+                .or(`user_id.eq.${user.id},id.in.("${DEMO_STARTER_ASSET_IDS.join('","')}")`);
+
+            const usedBytes = images?.reduce((acc, img) => acc + (img.original_size || 0), 0) || 0;
+            const percentage = (usedBytes / GUEST_QUOTA_BYTES) * 100;
+
             return NextResponse.json({
-                usedBytes: 0,
-                usedFormatted: '0 B',
-                quotaBytes: STORAGE_QUOTA_BYTES,
-                quotaFormatted: formatBytes(STORAGE_QUOTA_BYTES),
-                percentage: 0,
-                fileCount: 0
+                usedBytes,
+                usedFormatted: formatBytes(usedBytes),
+                quotaBytes: GUEST_QUOTA_BYTES,
+                quotaFormatted: formatBytes(GUEST_QUOTA_BYTES),
+                percentage: Math.min(percentage, 100),
+                fileCount: images?.length || 0
             });
         }
 
-        // Calculate total storage usage
-        let usedBytes = 0;
+        // Real Usage for Admins
+        const { data: images, error } = await supabaseAdmin
+            .from('assets')
+            .select('original_size');
 
-        images.forEach(img => {
-            // Sum only original size since our Telegram CDN generates optimized variants on-the-fly
+        if (error) throw error;
+
+        let usedBytes = 0;
+        images?.forEach(img => {
             usedBytes += (img.original_size || 0);
         });
 
@@ -55,17 +60,11 @@ export async function GET() {
             quotaBytes: STORAGE_QUOTA_BYTES,
             quotaFormatted: formatBytes(STORAGE_QUOTA_BYTES),
             percentage: Math.min(percentage, 100),
-            fileCount: images.length
+            fileCount: images?.length || 0
         });
 
     } catch (error: any) {
-        console.error('Storage usage calculation error:', error);
-        if (error.message === 'Unauthorized: Admin access required') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json(
-            { error: error.message || 'Failed to calculate storage usage' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: error.message }, { status: error.message.includes('Unauthorized') ? 401 : 500 });
     }
 }
+

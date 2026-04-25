@@ -115,6 +115,7 @@ export async function uploadToTelegram(
   buffer: Buffer,
   filename: string,
   mimeType: string,
+  caption?: string,
 ): Promise<TelegramUploadResult> {
   const formData = new FormData();
   formData.append('chat_id', CHAT_ID);
@@ -123,6 +124,9 @@ export async function uploadToTelegram(
     new Blob([new Uint8Array(buffer)], { type: mimeType }),
     filename,
   );
+  if (caption) {
+    formData.append('caption', caption);
+  }
   // Disable notifications — this is a silent storage channel
   formData.append('disable_notification', 'true');
 
@@ -130,6 +134,7 @@ export async function uploadToTelegram(
     method: 'POST',
     body: formData,
   });
+
 
   if (!res.ok) {
     const text = await res.text();
@@ -181,7 +186,9 @@ export async function uploadChunkedToTelegram(
   buffer: Buffer,
   filename: string,
   mimeType: string,
+  baseCaption?: string,
 ): Promise<TelegramChunkedUploadResult> {
+
   const totalChunks = Math.ceil(buffer.length / CHUNK_SIZE);
   const fileIds: string[] = [];
 
@@ -192,9 +199,13 @@ export async function uploadChunkedToTelegram(
 
     // Name each chunk clearly so they can be identified if needed
     const chunkName = `${filename}.part${String(i + 1).padStart(3, '0')}`;
+    const chunkCaption = baseCaption 
+      ? `${baseCaption}\n[Part ${i + 1}/${totalChunks}]`
+      : `Part ${i + 1}/${totalChunks} of ${filename}`;
 
-    const result = await uploadToTelegram(chunk, chunkName, 'application/octet-stream');
+    const result = await uploadToTelegram(chunk, chunkName, 'application/octet-stream', chunkCaption);
     fileIds.push(result.fileId);
+
 
     console.log(`[Telegram] Uploaded chunk ${i + 1}/${totalChunks} → ${result.fileId}`);
   }
@@ -218,17 +229,20 @@ export async function smartUploadToTelegram(
   buffer: Buffer,
   filename: string,
   mimeType: string,
+  caption?: string,
 ): Promise<TelegramChunkedUploadResult> {
+
   if (buffer.length > CHUNK_SIZE) {
     console.log(`[Telegram] File is ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using chunked upload`);
-    return uploadChunkedToTelegram(buffer, filename, mimeType);
+    return uploadChunkedToTelegram(buffer, filename, mimeType, caption);
   }
 
   console.log(`[Telegram] File is ${(buffer.length / 1024 / 1024).toFixed(1)}MB — using single upload`);
-  const result = await uploadToTelegram(buffer, filename, mimeType);
+  const result = await uploadToTelegram(buffer, filename, mimeType, caption);
   return {
     fileIds: [result.fileId],
     isChunked: false,
     chunkCount: 1,
   };
+
 }

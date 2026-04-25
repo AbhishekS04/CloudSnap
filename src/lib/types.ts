@@ -51,7 +51,9 @@ export interface ImageRecord {
   lg_size: number;
   created_at: string;
   folder_id?: string | null;
+  user_id?: string | null;
 }
+
 
 export interface Folder {
   id: string;
@@ -77,7 +79,9 @@ export interface Asset {
   is_chunked: boolean;
   chunk_count: number;
   folder_id: string | null;
+  user_id?: string | null;
   created_at: string;
+
   // Derived CDN URL helpers (not stored in DB)
   cdnUrl?: string;
 }

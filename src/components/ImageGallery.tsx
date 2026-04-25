@@ -16,9 +16,23 @@ interface ImageGalleryProps {
     onNavigate?: (folder: Folder) => void;
     onMoveImage?: (folderId: string, imageIds: string[]) => void;
     onDeleteFolder?: (folder: Folder) => void;
+    userRole?: 'ADMIN' | 'DEMO';
+    currentUserId?: string;
 }
 
-export function ImageGallery({ images, filterType = 'all', folders = [], onDelete, onNavigate, onMoveImage, onDeleteFolder }: ImageGalleryProps) {
+
+export function ImageGallery({ 
+    images, 
+    filterType = 'all', 
+    folders = [], 
+    onDelete, 
+    onNavigate, 
+    onMoveImage, 
+    onDeleteFolder,
+    userRole,
+    currentUserId
+}: ImageGalleryProps) {
+
     const displayedImages = images.filter(img => {
         if (filterType === 'photos') return img.mime_type.startsWith('image/');
         if (filterType === 'videos') return img.mime_type.startsWith('video/');
@@ -42,14 +56,29 @@ export function ImageGallery({ images, filterType = 'all', folders = [], onDelet
         >
             <AnimatePresence mode='popLayout'>
                 {displayedImages.map((image) => (
-                    <ImageCard key={image.id} image={image} onDelete={onDelete} />
+                    <ImageCard 
+                        key={image.id} 
+                        image={image} 
+                        onDelete={onDelete} 
+                        isTrial={userRole === 'DEMO' && !!currentUserId && image.user_id === currentUserId}
+                    />
                 ))}
             </AnimatePresence>
         </motion.div>
+
     );
 }
 
-function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, onDelete: (id: string) => void }) {
+function ImageCard({ 
+    image, 
+    onDelete, 
+    isTrial 
+}: { 
+    image: ImageRecord & { avif?: any }, 
+    onDelete: (id: string) => void,
+    isTrial?: boolean 
+}) {
+
     const isVideo = image.mime_type?.startsWith('video/');
     const isPDF = image.mime_type === 'application/pdf';
     const isArchive = image.mime_type?.includes('zip') || image.mime_type?.includes('tar') || image.mime_type?.includes('rar');
@@ -239,6 +268,15 @@ function ImageCard({ image, onDelete }: { image: ImageRecord & { avif?: any }, o
                         />
                     </a>
                 )}
+                
+                {/* Trial Badge */}
+                {isTrial && (
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[20] flex items-center gap-1.5 px-3 py-1 bg-blue-600 shadow-xl shadow-blue-600/20 rounded-full border border-blue-400/30 animate-in fade-in zoom-in duration-500">
+                        <Check className="w-3 h-3 text-white" />
+                        <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Trial Upload</span>
+                    </div>
+                )}
+
 
                 {/* Glassy Overlay for Meta Data - Always visible but subtle */}
                 <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">

@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
         const id = uuidv4();
         const { error: dbError } = await supabaseAdmin.from('assets').insert({
             id,
+            user_id: keyData.user_id,
             original_name: fileName,
             mime_type: rawMime,
             width,
@@ -147,6 +148,7 @@ export async function POST(req: NextRequest) {
             folder_id: finalFolderId,
             created_at: new Date().toISOString(),
         });
+
 
         if (dbError) throw dbError;
 
