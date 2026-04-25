@@ -58,14 +58,9 @@ export default function DashboardClient() {
             }
 
             const imgRes = await fetch(`/api/images?${queryParams}`);
-            let imgs = await imgRes.json();
+            const imgs = await imgRes.json();
 
             if (Array.isArray(imgs)) {
-                if (filterType === 'photos') {
-                    imgs = imgs.filter(img => img.mime_type.startsWith('image/'));
-                } else if (filterType === 'videos') {
-                    imgs = imgs.filter(img => img.mime_type.startsWith('video/'));
-                }
                 setImages(imgs);
             }
 
@@ -306,6 +301,7 @@ export default function DashboardClient() {
                     ) : (
                         <ImageGallery
                             images={images}
+                            filterType={filterType}
                             folders={[]}
                             onDelete={(id) => {
                                 const img = images.find(i => i.id === id);

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 
 interface ImageGalleryProps {
     images: (ImageRecord & { avif?: any })[];
+    filterType?: 'all' | 'photos' | 'videos';
     folders?: Folder[];
     onDelete: (id: string) => void;
     onNavigate?: (folder: Folder) => void;
@@ -17,12 +18,18 @@ interface ImageGalleryProps {
     onDeleteFolder?: (folder: Folder) => void;
 }
 
-export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMoveImage, onDeleteFolder }: ImageGalleryProps) {
-    if (images.length === 0 && folders.length === 0) {
+export function ImageGallery({ images, filterType = 'all', folders = [], onDelete, onNavigate, onMoveImage, onDeleteFolder }: ImageGalleryProps) {
+    const displayedImages = images.filter(img => {
+        if (filterType === 'photos') return img.mime_type.startsWith('image/');
+        if (filterType === 'videos') return img.mime_type.startsWith('video/');
+        return true;
+    });
+
+    if (displayedImages.length === 0 && folders.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-                <p className="text-xl font-semibold">No assets found</p>
-                <p className="text-sm mt-2">Upload some images to get started</p>
+                <p className="text-xl font-semibold">No {filterType === 'all' ? 'assets' : filterType} found</p>
+                <p className="text-sm mt-2">Upload some files to get started</p>
             </div>
         );
     }
@@ -33,8 +40,7 @@ export function ImageGallery({ images, folders = [], onDelete, onNavigate, onMov
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
         >
             <AnimatePresence mode='popLayout'>
-                {/* Images in Masonry - Folders now stay in the Sidebar as per user feedback */}
-                {images.map((image) => (
+                {displayedImages.map((image) => (
                     <ImageCard key={image.id} image={image} onDelete={onDelete} />
                 ))}
             </AnimatePresence>
