@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2, File, Archive } from 'lucide-react';
+import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2, File, Archive, Link as LinkIcon } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
@@ -87,7 +87,8 @@ function ImageCard({
     const [format, setFormat] = useState<'avif' | 'webp' | 'original' | 'compressed'>('original');
     const [size, setSize] = useState<'lg' | 'md' | 'sm' | 'thumb'>('lg');
     const [isHovered, setIsHovered] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const [shareCopied, setShareCopied] = useState(false);
+    const [directCopied, setDirectCopied] = useState(false);
 
     // Smart Truncate Helper
     const truncateFileName = (name: string, maxLength: number = 20) => {
@@ -132,17 +133,31 @@ function ImageCard({
         return getUrl();
     };
 
-    const handleCopy = async (e: React.MouseEvent) => {
+    const handleCopyShare = async (e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
         try {
-            // Copy the public share page URL
+            // Copy the share landing page URL
             const shareUrl = `${window.location.origin}/share/${image.id}`;
             await navigator.clipboard.writeText(shareUrl);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            setShareCopied(true);
+            setTimeout(() => setShareCopied(false), 2000);
         } catch (err) {
-            console.error('Copy failed', err);
+            console.error('Share copy failed', err);
+        }
+    };
+
+    const handleCopyDirect = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        try {
+            // Copy the direct CDN URL with current transforms
+            const directUrl = `${window.location.origin}${getUrl()}`;
+            await navigator.clipboard.writeText(directUrl);
+            setDirectCopied(true);
+            setTimeout(() => setDirectCopied(false), 2000);
+        } catch (err) {
+            console.error('Direct link copy failed', err);
         }
     };
 
@@ -368,16 +383,36 @@ function ImageCard({
                             )}
                         </div>
 
-                        {/* Animated Action Button */}
-                        <button
-                            onClick={handleCopy}
-                            className="group/btn relative w-full overflow-hidden rounded-2xl bg-white p-3 font-bold text-black transition-all hover:bg-zinc-100"
-                        >
-                            <span className="relative z-10 flex items-center justify-center gap-2 text-sm">
-                                {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-                                {copied ? 'Link Copied' : 'Share Asset'}
-                            </span>
-                        </button>
+                        {/* Dual Action Buttons */}
+                        <div className="flex gap-2 w-full">
+                            <button
+                                onClick={handleCopyShare}
+                                className="flex-1 group/btn relative overflow-hidden rounded-2xl bg-zinc-800/80 hover:bg-zinc-700/80 backdrop-blur-xl border border-white/5 p-3 font-bold text-white transition-all active:scale-95"
+                                title="Share Asset Page"
+                                aria-label="Share Asset"
+                            >
+                                <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 text-sm">
+                                    {shareCopied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
+                                    <span className="hidden md:inline">
+                                        {shareCopied ? 'Copied' : 'Share'}
+                                    </span>
+                                </span>
+                            </button>
+
+                            <button
+                                onClick={handleCopyDirect}
+                                className="flex-1 group/btn relative overflow-hidden rounded-2xl bg-white p-3 font-bold text-black transition-all hover:bg-zinc-100 active:scale-95 shadow-xl shadow-white/5"
+                                title="Copy Direct CDN Link"
+                                aria-label="Copy Direct Link"
+                            >
+                                <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 text-sm">
+                                    {directCopied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                                    <span className="hidden md:inline">
+                                        {directCopied ? 'Copied' : 'Copy Link'}
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
