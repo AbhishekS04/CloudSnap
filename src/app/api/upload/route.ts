@@ -32,6 +32,7 @@ import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import { slugify } from '@/lib/utils';
+import { analyzeImage } from '@/lib/ai-service';
 
 import { requireAuth, checkDemoLimit, DEMO_LIMITS } from '@/lib/auth';
 
@@ -285,6 +286,16 @@ export async function POST(req: NextRequest) {
         const telegramResult = await smartUploadToTelegram(buffer, fileName, mimeType, caption);
 
 
+        log('info', 'Telegram upload complete', { fileIds: telegramResult.fileIds });
+        
+        // ── AI Analysis ───────────────────────────────────────────────────
+        let aiAnalysis = null;
+        if (mimeType.startsWith('image/') && buffer.length < 15 * 1024 * 1024) { // Only analyze images < 15MB
+            log('info', 'Starting AI Analysis with Gemini');
+            aiAnalysis = await analyzeImage(buffer, mimeType);
+            log('info', 'AI Analysis complete', { description: aiAnalysis.description, tags: aiAnalysis.tags });
+        }
+
         log('info', 'Telegram upload complete', { isChunked: telegramResult.isChunked, chunkCount: telegramResult.chunkCount });
 
         // ── Final Guard: Check limit one last time before DB insert ────────
@@ -325,6 +336,9 @@ export async function POST(req: NextRequest) {
                 chunk_count:        telegramResult.chunkCount,
                 folder_id:          folderId !== 'null' ? folderId : null,
                 created_at:         new Date().toISOString(),
+                // ── AI Metadata ──────────────────────────────────────────────
+                ai_description:     aiAnalysis?.description || null,
+                ai_tags:            aiAnalysis?.tags || null,
             });
 
         if (dbError) {

@@ -126,7 +126,7 @@ export async function GET(
     // ── 3. L1/L2 Cache Check — Final Output ──────────────────────────────
     // Key is unique per (id + transform params). Range requests bypass output cache
     // because the response body depends on the byte range, not the transform.
-    const transformKey = `cs:${assetId}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
+    const transformKey = `cs:${id}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
 
     if (!rangeHeader) {
       const cached = await getCache(transformKey);

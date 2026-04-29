@@ -81,6 +81,10 @@ export interface Asset {
   folder_id: string | null;
   user_id?: string | null;
   created_at: string;
+  
+  // AI Metadata
+  ai_description?: string | null;
+  ai_tags?: string[] | null;
 
   // Derived CDN URL helpers (not stored in DB)
   cdnUrl?: string;
