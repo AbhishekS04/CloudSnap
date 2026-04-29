@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
         const mappedData = data.map((asset: any) => {
             const isVideo = (asset.mime_type as string || '').startsWith('video/');
-            const baseUrl = `/api/cdn/${asset.id}`;
+            const baseUrl = `/api/cdn/${encodeURIComponent(asset.original_name || asset.id)}`;
             return {
                 ...asset,
                 original_ext: asset.original_name?.split('.').pop() || (isVideo ? 'mp4' : 'jpg'),

@@ -474,6 +474,12 @@ export default function DashboardClient({
                                             const img = images.find(i => i.id === id);
                                             confirmDelete('image', id, img?.original_name || 'Asset');
                                         }}
+                                        onRename={(id, newName) => {
+                                            setImages(prev => prev.map(img => 
+                                                img.id === id ? { ...img, original_name: newName } : img
+                                            ));
+                                            toast.success('Asset renamed');
+                                        }}
                                         onNavigate={(f) => { setCurrentFolder(f); setFilterType('all'); }}
                                         onMoveImage={handleMoveImage}
                                         onDeleteFolder={(folder) => confirmDelete('folder', folder.id, folder.name)}

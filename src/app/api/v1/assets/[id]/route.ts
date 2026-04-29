@@ -40,9 +40,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 created_at: data.created_at,
                 links: {
                     share: `${origin}/share/${data.id}`,
-                    cdn: `${origin}/api/cdn/${data.id}`,
-                    download: `${origin}/api/cdn/${data.id}?dl=1`,
-                    thumbnail: data.mime_type.startsWith('video/') ? `${origin}/api/cdn/${data.id}` : `${origin}/api/cdn/${data.id}?w=300&fmt=webp`
+                    cdn: `${origin}/api/cdn/${encodeURIComponent(data.original_name || data.id)}`,
+                    download: `${origin}/api/cdn/${encodeURIComponent(data.original_name || data.id)}?dl=1`,
+                    thumbnail: data.mime_type.startsWith('video/') ? `${origin}/api/cdn/${encodeURIComponent(data.original_name || data.id)}` : `${origin}/api/cdn/${encodeURIComponent(data.original_name || data.id)}?w=300&fmt=webp`
                 }
             }
         });

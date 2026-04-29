@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2, File, Archive, Link as LinkIcon } from 'lucide-react';
+import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2, File, Archive, Link as LinkIcon, Edit2, X } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
@@ -13,6 +13,7 @@ interface ImageGalleryProps {
     filterType?: 'all' | 'photos' | 'videos' | 'documents';
     folders?: Folder[];
     onDelete: (id: string) => void;
+    onRename?: (id: string, newName: string) => void;
     onNavigate?: (folder: Folder) => void;
     onMoveImage?: (folderId: string, imageIds: string[]) => void;
     onDeleteFolder?: (folder: Folder) => void;
@@ -26,6 +27,7 @@ export function ImageGallery({
     filterType = 'all', 
     folders = [], 
     onDelete, 
+    onRename,
     onNavigate, 
     onMoveImage, 
     onDeleteFolder,
@@ -72,12 +74,27 @@ export function ImageGallery({
 function ImageCard({ 
     image, 
     onDelete, 
+    onRename,
     isTrial 
 }: { 
     image: ImageRecord & { avif?: any }, 
     onDelete: (id: string) => void,
+    onRename?: (id: string, newName: string) => void,
     isTrial?: boolean 
 }) {
+    const [isRenaming, setIsRenaming] = useState(false);
+    const splitName = (fullName: string) => {
+        const extIndex = fullName.lastIndexOf('.');
+        if (extIndex === -1) return { name: fullName, ext: '' };
+        return {
+            name: fullName.substring(0, extIndex),
+            ext: fullName.substring(extIndex)
+        };
+    };
+    const initialParts = splitName(image.original_name);
+    const [newName, setNewName] = useState(initialParts.name);
+    const [extension] = useState(initialParts.ext);
+    const [isSavingName, setIsSavingName] = useState(false);
 
     const isVideo = image.mime_type?.startsWith('video/');
     const isPDF = image.mime_type === 'application/pdf';
@@ -108,7 +125,7 @@ function ImageCard({
     };
 
     const getUrl = () => {
-        const baseUrl = image.original_url || `/api/cdn/${image.id}`;
+        const baseUrl = image.original_url || `/api/cdn/${encodeURIComponent(image.original_name || image.id)}`;
 
         if (isVideo) {
             return format === 'compressed' ? (image.md_url || baseUrl) : baseUrl;
@@ -131,6 +148,36 @@ function ImageCard({
             return image.md_url || image.sm_url || image.thumb_url || getUrl();
         }
         return getUrl();
+    };
+
+    const handleRename = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        const fullName = `${newName}${extension}`;
+        if (!newName || fullName === image.original_name) {
+            setIsRenaming(false);
+            return;
+        }
+
+        setIsSavingName(true);
+        try {
+            const response = await fetch(`/api/assets/${image.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: fullName })
+            });
+
+            if (!response.ok) throw new Error('Failed to rename');
+            
+            const data = await response.json();
+            if (onRename) onRename(image.id, data.name);
+            setIsRenaming(false);
+        } catch (err) {
+            console.error('Rename failed', err);
+            const parts = splitName(image.original_name);
+            setNewName(parts.name);
+        } finally {
+            setIsSavingName(false);
+        }
     };
 
     const handleCopyShare = async (e: React.MouseEvent) => {
@@ -316,6 +363,18 @@ function ImageCard({
                             <Download className="w-4 h-4" />
                         </button>
                         <button
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                const parts = splitName(image.original_name);
+                                setNewName(parts.name);
+                                setIsRenaming(true); 
+                            }}
+                            className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-white rounded-full transition-all active:scale-95 lg:hover:scale-110"
+                            title="Rename"
+                        >
+                            <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
                             onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
                             className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-red-400 rounded-full transition-all active:scale-95 lg:hover:scale-110"
                             title="Delete"
@@ -335,11 +394,42 @@ function ImageCard({
                     <div className="translate-y-0 lg:translate-y-4 lg:group-hover:translate-y-0 transition-transform duration-500 pointer-events-auto">
                         <div className="flex flex-col gap-4 mb-5">
                             <div className="flex flex-col gap-1.5">
-                                <span className="text-base sm:text-lg font-bold text-white leading-tight truncate" title={image.original_name}>
-                                    {truncateFileName(image.original_name, 22)}
-                                </span>
+                                {isRenaming ? (
+                                        <div className="w-full relative flex items-center gap-2">
+                                            <div className="relative flex-1 flex items-center">
+                                                <input
+                                                    autoFocus
+                                                    type="text"
+                                                    value={newName}
+                                                    onChange={(e) => setNewName(e.target.value.replace(/\s+/g, '-'))}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Escape') setIsRenaming(false);
+                                                        if (e.key === 'Enter') handleRename();
+                                                    }}
+                                                    disabled={isSavingName}
+                                                    className="w-full bg-white/10 border border-white/20 rounded-lg pl-3 pr-12 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                                    placeholder="Enter name..."
+                                                />
+                                                <span className="absolute right-3 text-[10px] font-bold text-zinc-500 pointer-events-none select-none uppercase">
+                                                    {format === 'original' ? extension.replace('.', '') : format}
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsRenaming(false); }}
+                                                className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors"
+                                                title="Cancel"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                ) : (
+                                    <span className="text-base sm:text-lg font-bold text-white leading-tight truncate" title={image.original_name}>
+                                        {truncateFileName(image.original_name, 22)}
+                                    </span>
+                                )}
                                 <div className="flex items-center gap-2">
-                                    {!isPDF && (
+                                    {image.width && image.height && !isPDF && (
                                         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
                                             {image.width}x{image.height}
                                         </span>

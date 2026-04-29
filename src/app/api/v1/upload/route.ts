@@ -16,6 +16,7 @@ import { getMetadata } from '@/lib/image-processing';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import busboy from 'busboy';
+import { slugify } from '@/lib/utils';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,8 @@ function generateCleanName(mimeType: string, originalName: string): string {
     else if (mimeType.includes('zip')) prefix = 'ZIP';
 
     const randomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `${prefix}_${randomId}${ext}`;
+    const nameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.'));
+    return `${slugify(nameWithoutExt)}_${randomId}${ext}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -154,7 +156,7 @@ export async function POST(req: NextRequest) {
 
         // 7. Response
         const shareUrl = `${origin}/share/${id}`;
-        const cdnUrl = `${origin}/api/cdn/${id}`;
+        const cdnUrl = `${origin}/api/cdn/${encodeURIComponent(fileName || id)}`;
 
         return NextResponse.json({
             success: true,

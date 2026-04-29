@@ -70,15 +70,38 @@ export async function GET(
 
   try {
     // ── 1. Look up asset metadata in Supabase ──────────────────────────────
-    const { data: asset, error } = await supabaseAdmin
-      .from('assets')
-      .select('id, mime_type, telegram_file_ids, is_chunked, original_name, original_size, chunk_count')
-      .eq('id', id)
-      .single();
+    // Check if the id parameter is a valid UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    let asset = null;
+    let error = null;
+
+    if (isUuid) {
+      const result = await supabaseAdmin
+        .from('assets')
+        .select('id, mime_type, telegram_file_ids, is_chunked, original_name, original_size, chunk_count')
+        .eq('id', id)
+        .single();
+      asset = result.data;
+      error = result.error;
+    } else {
+      const decodedName = decodeURIComponent(id);
+      const result = await supabaseAdmin
+        .from('assets')
+        .select('id, mime_type, telegram_file_ids, is_chunked, original_name, original_size, chunk_count')
+        .eq('original_name', decodedName)
+        .limit(1)
+        .single();
+      asset = result.data;
+      error = result.error;
+    }
 
     if (error || !asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
     }
+
+    // Use the actual asset ID for cache keys to prevent collisions if names change
+    const assetId = asset.id;
 
     // ── 2. Determine MIME & base response headers ──────────────────────────
     const mimeType     = asset.mime_type as string;
@@ -91,7 +114,7 @@ export async function GET(
       'Content-Disposition':         `${isDownload ? 'attachment' : 'inline'}; filename="${safeFilename}"`,
       'Cache-Control':               'public, s-maxage=31536000, stale-while-revalidate=59, immutable',
       'Access-Control-Allow-Origin': '*',
-      'X-CloudSnap-Asset-Id':        id,
+      'X-CloudSnap-Asset-Id':        assetId,
       'X-CloudSnap-Chunked':         String(asset.is_chunked),
       'Accept-Ranges':               'bytes',
     };
@@ -103,7 +126,7 @@ export async function GET(
     // ── 3. L1/L2 Cache Check — Final Output ──────────────────────────────
     // Key is unique per (id + transform params). Range requests bypass output cache
     // because the response body depends on the byte range, not the transform.
-    const transformKey = `cs:${id}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
+    const transformKey = `cs:${assetId}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
 
     if (!rangeHeader) {
       const cached = await getCache(transformKey);
@@ -158,7 +181,7 @@ export async function GET(
 
         const neededBuffers: Buffer[] = [];
         for (let ci = startChunkIdx; ci <= endChunkIdx; ci++) {
-          const chunkKey  = `cs:chunk:${id}:${ci}`;
+          const chunkKey  = `cs:chunk:${assetId}:${ci}`;
           const fromCache = await getCache(chunkKey);
           if (fromCache) {
             neededBuffers.push(fromCache.buffer);
@@ -187,7 +210,7 @@ export async function GET(
       }
 
       // Non-chunked video range request — download the single file, slice it
-      const rawKey    = `cs:raw:${id}`;
+      const rawKey    = `cs:raw:${assetId}`;
       let singleBuf   = (await getCache(rawKey))?.buffer ?? null;
       if (!singleBuf) {
         singleBuf = await downloadFromTelegram((asset.telegram_file_ids as string[])[0]);
@@ -210,7 +233,7 @@ export async function GET(
     }
 
     // ── 6. Case C: Buffer — Image Transform or Chunked Non-Range ─────────
-    const rawKey = `cs:raw:${id}`;
+    const rawKey = `cs:raw:${assetId}`;
     let buffer: Buffer | null = (await getCache(rawKey))?.buffer ?? null;
 
     if (!buffer) {

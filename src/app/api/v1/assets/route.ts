@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
             created_at: asset.created_at,
             links: {
                 share: `${origin}/share/${asset.id}`,
-                cdn: `${origin}/api/cdn/${asset.id}`,
-                download: `${origin}/api/cdn/${asset.id}?dl=1`
+                cdn: `${origin}/api/cdn/${encodeURIComponent(asset.original_name || asset.id)}`,
+                download: `${origin}/api/cdn/${encodeURIComponent(asset.original_name || asset.id)}?dl=1`
             }
         }));
 

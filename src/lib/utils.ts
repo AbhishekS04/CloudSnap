@@ -16,3 +16,15 @@ export function formatBytes(bytes: number, decimals = 2) {
 
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
+
+export function slugify(text: string): string {
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')     // Replace spaces with -
+        .replace(/[^\w.-]+/g, '') // Remove all non-word chars (except . and -)
+        .replace(/--+/g, '-')     // Replace multiple - with single -
+        .replace(/^-+/, '')       // Trim - from start of text
+        .replace(/-+$/, '');      // Trim - from end of text
+}

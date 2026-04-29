@@ -16,7 +16,7 @@ export function SharePageClient({ asset }: SharePageClientProps) {
     const isImage = asset.mime_type.startsWith('image/');
     const isPDF = asset.mime_type === 'application/pdf';
     const isArchive = asset.mime_type?.includes('zip') || asset.mime_type?.includes('tar') || asset.mime_type?.includes('rar');
-    const cdnUrl = `/api/cdn/${asset.id}`;
+    const cdnUrl = `/api/cdn/${encodeURIComponent(asset.original_name || asset.id)}`;
     
     const handleCopy = () => {
         navigator.clipboard.writeText(window.location.href);

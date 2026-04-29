@@ -31,6 +31,7 @@ import { getMetadata, ensureBrowserCompatible } from '@/lib/image-processing';
 import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
+import { slugify } from '@/lib/utils';
 
 import { requireAuth, checkDemoLimit, DEMO_LIMITS } from '@/lib/auth';
 
@@ -334,7 +335,7 @@ export async function POST(req: NextRequest) {
         log('info', 'Asset saved to Supabase', { id });
 
         // ── Return response ────────────────────────────────────────────────
-        const cdnUrl = `/api/cdn/${id}`;
+        const cdnUrl = `/api/cdn/${encodeURIComponent(fileName || id)}`;
         const isVideoAsset = mimeType.startsWith('video/');
 
         return NextResponse.json({

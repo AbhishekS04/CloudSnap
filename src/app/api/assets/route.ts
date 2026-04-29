@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import { requireAuth } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { slugify } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
             .insert({
                 id,
                 user_id:            user.id, // Track ownership
-                original_name:      name,
+                original_name:      slugify(name),
                 mime_type:          mimeType,
                 width:              width  || null,
                 height:             height || null,
@@ -53,12 +54,13 @@ export async function POST(req: NextRequest) {
 
         if (dbError) throw new Error(`Failed to save metadata: ${dbError.message}`);
 
-        const baseUrl = `/api/cdn/${id}`;
+        const cleanName = slugify(name);
+        const baseUrl = `/api/cdn/${encodeURIComponent(cleanName || id)}`;
         const isVideo = (mimeType as string || '').startsWith('video/');
         
         const mappedAsset = {
             id,
-            original_name: name,
+            original_name: cleanName,
             mime_type: mimeType,
             width: width || null,
             height: height || null,
