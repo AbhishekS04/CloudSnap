@@ -13,7 +13,7 @@ interface ImageGalleryProps {
     filterType?: 'all' | 'photos' | 'videos' | 'documents';
     folders?: Folder[];
     onDelete: (id: string) => void;
-    onRename?: (id: string, newName: string) => void;
+    onRename?: (id: string, newName: string, cdnUrl?: string) => void;
     onNavigate?: (folder: Folder) => void;
     onMoveImage?: (folderId: string, imageIds: string[]) => void;
     onDeleteFolder?: (folder: Folder) => void;
@@ -79,7 +79,7 @@ function ImageCard({
 }: { 
     image: ImageRecord & { avif?: any }, 
     onDelete: (id: string) => void,
-    onRename?: (id: string, newName: string) => void,
+    onRename?: (id: string, newName: string, cdnUrl?: string) => void,
     isTrial?: boolean 
 }) {
     const [isRenaming, setIsRenaming] = useState(false);
@@ -166,10 +166,13 @@ function ImageCard({
                 body: JSON.stringify({ name: fullName })
             });
 
-            if (!response.ok) throw new Error('Failed to rename');
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || 'Failed to rename');
+            }
             
             const data = await response.json();
-            if (onRename) onRename(image.id, data.name);
+            if (onRename) onRename(image.id, data.name, data.cdnUrl);
             setIsRenaming(false);
         } catch (err) {
             console.error('Rename failed', err);
@@ -251,20 +254,15 @@ function ImageCard({
 
     return (
         <motion.div
-            layout
-            initial={{ opacity: 0, y: 30, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            layout="position"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, filter: "blur(8px)", transition: { duration: 0.2 } }}
             transition={{ 
-                type: "spring", 
-                damping: 25, 
-                stiffness: 300,
-                layout: { duration: 0.4, ease: "easeOut" }
+                layout: { type: "spring", stiffness: 400, damping: 30 },
+                opacity: { duration: 0.2 }
             }}
-            className={cn(
-                "group relative bg-zinc-900 border border-zinc-800/50 rounded-3xl overflow-hidden hover:ring-2 hover:ring-white/10 hover:shadow-2xl",
-                isHovered && "scale-[1.01]"
-            )}
+            className="group relative bg-zinc-950 border border-white/5 rounded-[2rem] overflow-hidden hover:border-white/10 transition-colors duration-500 shadow-2xl isolate"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={(e) => {
@@ -324,7 +322,7 @@ function ImageCard({
                         <img
                             src={getPreviewSrc()}
                             alt={image.original_name}
-                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105"
+                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
                             loading="lazy"
                             draggable={false}
                         />
@@ -332,17 +330,23 @@ function ImageCard({
                 )}
                 
                 {/* Trial Badge */}
-                {isTrial && (
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[20] flex items-center gap-1.5 px-3 py-1 bg-blue-600 shadow-xl shadow-blue-600/20 rounded-full border border-blue-400/30 animate-in fade-in zoom-in duration-500">
-                        <Check className="w-3 h-3 text-white" />
-                        <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Trial Upload</span>
-                    </div>
-                )}
+                <AnimatePresence>
+                    {isTrial && (
+                        <motion.div 
+                            initial={{ y: -20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            className="absolute top-4 left-1/2 -translate-x-1/2 z-[20] flex items-center gap-1.5 px-3 py-1 bg-blue-600 shadow-xl shadow-blue-600/20 rounded-full border border-blue-400/30"
+                        >
+                            <Check className="w-3 h-3 text-white" />
+                            <span className="text-[9px] font-black text-white uppercase tracking-[0.2em]">Trial Upload</span>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
 
-                {/* Glassy Overlay for Meta Data - Always visible but subtle */}
-                <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-                    <div className="px-3 py-1.5 bg-zinc-950/60 backdrop-blur-md rounded-full border border-white/5 flex items-center gap-2 pointer-events-none">
+                {/* Glassy Overlay for Meta Data */}
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+                    <div className="px-3 py-1.5 bg-black/40 backdrop-blur-xl rounded-full border border-white/10 flex items-center gap-2 pointer-events-none">
                         <span className="text-[10px] font-bold text-zinc-400 tracking-wider uppercase">{image.original_ext || (isPDF ? 'PDF' : isArchive ? 'ZIP' : 'FILE')}</span>
                         {isImage && (
                             <>
@@ -354,10 +358,10 @@ function ImageCard({
                         )}
                     </div>
 
-                    <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-300">
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-[-10px] group-hover:translate-y-0">
                         <button
                             onClick={handleDownload}
-                            className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-white rounded-full transition-all active:scale-95 lg:hover:scale-110"
+                            className="p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 text-zinc-400 hover:text-white rounded-full transition-all active:scale-90 hover:bg-white/10"
                             title="Download"
                         >
                             <Download className="w-4 h-4" />
@@ -369,14 +373,14 @@ function ImageCard({
                                 setNewName(parts.name);
                                 setIsRenaming(true); 
                             }}
-                            className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-white rounded-full transition-all active:scale-95 lg:hover:scale-110"
+                            className="p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 text-zinc-400 hover:text-white rounded-full transition-all active:scale-90 hover:bg-white/10"
                             title="Rename"
                         >
                             <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); onDelete(image.id); }}
-                            className="p-2.5 bg-zinc-950/60 backdrop-blur-md border border-white/5 text-zinc-400 hover:text-red-400 rounded-full transition-all active:scale-95 lg:hover:scale-110"
+                            className="p-2.5 bg-black/40 backdrop-blur-xl border border-white/10 text-zinc-400 hover:text-red-400 rounded-full transition-all active:scale-90 hover:bg-red-500/20"
                             title="Delete"
                         >
                             <Trash2 className="w-4 h-4" />
@@ -384,18 +388,25 @@ function ImageCard({
                     </div>
                 </div>
 
-                {/* Expand Area on Hover - For videos we make it non-blocking */}
+                {/* Main Interaction Area */}
                 <div
                     className={cn(
-                        "absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent lg:bg-black/40 lg:backdrop-blur-[2px] opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-5 sm:p-6 pointer-events-auto lg:pointer-events-none",
-                        isHovered && "lg:opacity-100 lg:pointer-events-auto"
+                        "absolute inset-0 bg-gradient-to-t from-black/100 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col justify-end p-6 pointer-events-none group-hover:pointer-events-auto",
+                        isHovered && "opacity-100 pointer-events-auto"
                     )}
                 >
-                    <div className="translate-y-0 lg:translate-y-4 lg:group-hover:translate-y-0 transition-transform duration-500 pointer-events-auto">
-                        <div className="flex flex-col gap-4 mb-5">
+                    <div className="translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
+                        <div className="flex flex-col gap-4 mb-6">
                             <div className="flex flex-col gap-1.5">
-                                {isRenaming ? (
-                                        <div className="w-full relative flex items-center gap-2">
+                                <AnimatePresence mode="wait">
+                                    {isRenaming ? (
+                                        <motion.div 
+                                            key="rename"
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: 10 }}
+                                            className="w-full relative flex items-center gap-2"
+                                        >
                                             <div className="relative flex-1 flex items-center">
                                                 <input
                                                     autoFocus
@@ -407,47 +418,55 @@ function ImageCard({
                                                         if (e.key === 'Enter') handleRename();
                                                     }}
                                                     disabled={isSavingName}
-                                                    className="w-full bg-black/40 backdrop-blur-xl border border-white/20 rounded-lg pl-3 pr-12 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-2xl"
+                                                    className="w-full bg-black/60 backdrop-blur-2xl border border-white/20 rounded-xl pl-4 pr-14 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/20 shadow-2xl placeholder:text-zinc-500"
                                                     placeholder="Enter name..."
                                                 />
-                                                <span className="absolute right-3 text-[10px] font-bold text-zinc-400 pointer-events-none select-none uppercase">
+                                                <span className="absolute right-4 text-[10px] font-black text-zinc-500 pointer-events-none select-none uppercase tracking-tighter">
                                                     {format === 'original' ? extension.replace('.', '') : format}
                                                 </span>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsRenaming(false); }}
-                                                className="p-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors shadow-2xl"
+                                                className="p-2.5 bg-black/60 backdrop-blur-2xl border border-white/20 rounded-xl text-zinc-400 hover:text-white transition-all active:scale-90 shadow-2xl"
                                                 title="Cancel"
                                             >
-                                                <X className="w-3.5 h-3.5" />
+                                                <X className="w-4 h-4" />
                                             </button>
-                                        </div>
-                                ) : (
-                                    <span className="text-base sm:text-lg font-bold text-white leading-tight truncate" title={image.original_name}>
-                                        {truncateFileName(image.original_name, 22)}
-                                    </span>
-                                )}
+                                        </motion.div>
+                                    ) : (
+                                        <motion.span 
+                                            key="name"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="text-lg sm:text-xl font-bold text-white leading-tight truncate tracking-tight" 
+                                            title={image.original_name}
+                                        >
+                                            {truncateFileName(image.original_name, 24)}
+                                        </motion.span>
+                                    )}
+                                </AnimatePresence>
+
                                 <div className="flex items-center gap-2">
                                     {image.width && image.height && !isPDF && (
-                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
                                             {image.width}x{image.height}
                                         </span>
                                     )}
-                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">
                                         {getSizeDisplay()}
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Format Selector Pills - Dedicated Row */}
+                            {/* Format Selector Pills */}
                             {isImage && (
-                                <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
+                                <div className="flex bg-black/40 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
                                     {['original', 'webp', 'avif'].map((fmt) => (
                                         <button
                                             key={fmt}
                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat(fmt as any); }}
-                                            className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider uppercase transition-all whitespace-nowrap ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-300 hover:text-white'}`}
+                                            className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.15em] uppercase transition-all whitespace-nowrap ${format === fmt ? 'bg-white text-black shadow-xl shadow-white/20' : 'text-zinc-400 hover:text-white'}`}
                                         >
                                             {fmt === 'original' ? 'RAW' : fmt}
                                         </button>
@@ -456,16 +475,16 @@ function ImageCard({
                             )}
 
                             {isVideo && (
-                                <div className="flex bg-white/10 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
+                                <div className="flex bg-black/40 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
                                     <button
                                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('original'); }}
-                                        className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'original' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                        className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.15em] transition-all whitespace-nowrap ${format === 'original' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
                                     >
                                         RAW
                                     </button>
                                     <button
                                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFormat('compressed'); }}
-                                        className={`px-3 py-1.5 rounded-full text-[9px] font-bold tracking-wider transition-all whitespace-nowrap ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-300 hover:text-white'}`}
+                                        className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.15em] transition-all whitespace-nowrap ${format === 'compressed' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
                                     >
                                         COMP
                                     </button>
@@ -477,13 +496,12 @@ function ImageCard({
                         <div className="flex gap-2 w-full">
                             <button
                                 onClick={handleCopyShare}
-                                className="flex-1 group/btn relative overflow-hidden rounded-2xl bg-zinc-800/80 hover:bg-zinc-700/80 backdrop-blur-xl border border-white/5 p-3 font-bold text-white transition-all active:scale-95"
+                                className="flex-1 group/btn relative overflow-hidden rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/80 backdrop-blur-3xl border border-white/10 p-3.5 font-bold text-white transition-all active:scale-95"
                                 title="Share Asset Page"
-                                aria-label="Share Asset"
                             >
-                                <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 text-sm">
+                                <span className="relative z-10 flex items-center justify-center gap-2 text-sm">
                                     {shareCopied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
-                                    <span className="hidden md:inline">
+                                    <span className="hidden sm:inline">
                                         {shareCopied ? 'Copied' : 'Share'}
                                     </span>
                                 </span>
@@ -491,13 +509,12 @@ function ImageCard({
 
                             <button
                                 onClick={handleCopyDirect}
-                                className="flex-1 group/btn relative overflow-hidden rounded-2xl bg-white p-3 font-bold text-black transition-all hover:bg-zinc-100 active:scale-95 shadow-xl shadow-white/5"
+                                className="flex-1 group/btn relative overflow-hidden rounded-2xl bg-white p-3.5 font-bold text-black transition-all hover:bg-zinc-100 active:scale-95 shadow-xl shadow-white/10"
                                 title="Copy Direct CDN Link"
-                                aria-label="Copy Direct Link"
                             >
-                                <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 text-sm">
+                                <span className="relative z-10 flex items-center justify-center gap-2 text-sm">
                                     {directCopied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
-                                    <span className="hidden md:inline">
+                                    <span className="hidden sm:inline">
                                         {directCopied ? 'Copied' : 'Copy Link'}
                                     </span>
                                 </span>

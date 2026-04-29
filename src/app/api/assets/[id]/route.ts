@@ -29,7 +29,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
         }
 
-        if (asset.user_id !== user.id) {
+        if (asset.user_id !== user.id && user.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

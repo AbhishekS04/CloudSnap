@@ -474,9 +474,13 @@ export default function DashboardClient({
                                             const img = images.find(i => i.id === id);
                                             confirmDelete('image', id, img?.original_name || 'Asset');
                                         }}
-                                        onRename={(id, newName) => {
+                                        onRename={(id, newName, cdnUrl) => {
                                             setImages(prev => prev.map(img => 
-                                                img.id === id ? { ...img, original_name: newName } : img
+                                                img.id === id ? { 
+                                                    ...img, 
+                                                    original_name: newName,
+                                                    ...(cdnUrl ? { original_url: cdnUrl } : {})
+                                                } : img
                                             ));
                                             toast.success('Asset renamed');
                                         }}
