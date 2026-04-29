@@ -64,6 +64,18 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/og-image.avif',
+        destination: '/og-image.png',
+      },
+      {
+        source: '/og-image',
+        destination: '/og-image.png',
+      },
+    ];
+  },
 };
 
 // PWA configuration is disabled due to Webpack/Turbopack conflict

@@ -25,9 +25,17 @@ export default function Home() {
             <h1 className="text-5xl sm:text-7xl md:text-9xl lg:text-[12rem] font-medium tracking-tighter leading-[0.8] text-white select-none">
               Cloud<span className="italic-display text-white/90">Snap</span>
             </h1>
-            <span className="text-xl sm:text-3xl font-light text-zinc-500 font-display italic tracking-wide">
-              The new standard.
-            </span>
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-xl sm:text-3xl font-light text-zinc-500 font-display italic tracking-wide">
+                The new standard.
+              </span>
+              <p className="text-zinc-600 text-sm font-medium tracking-[0.2em] uppercase">
+                High Performance Assets • <span className="text-zinc-400">Abhishek Singh</span>
+              </p>
+              <p className="sr-only">
+                CloudSnap is a private high-performance asset hosting platform built by Abhishek Singh, a Full Stack Developer from Kolkata, India.
+              </p>
+            </div>
           </div>
 
           {/* Minimal CTA */}

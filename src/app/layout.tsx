@@ -38,13 +38,41 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "CloudSnap",
-  description: "Private High-Performance Asset Hosting by Abhishek Singh",
+  title: "CloudSnap | Private High-Performance Asset Hosting",
+  description: "Secure, lightning-fast media and asset hosting platform built for developers. High-performance delivery with advanced optimization, powered by Abhishek Singh.",
+  keywords: ["CloudSnap", "Asset Hosting", "Abhishek Singh", "Full Stack Developer", "Private Hosting", "Next.js", "Supabase", "Kolkata Developer"],
+  authors: [{ name: "Abhishek Singh", url: "https://abhisheksingh.tech" }],
+  creator: "Abhishek Singh",
+  publisher: "Abhishek Singh",
+  robots: "index, follow",
   manifest: "/manifest.json",
   icons: [
     { rel: "apple-touch-icon", url: "/icons/android-chrome-192x192.png" },
     { rel: "icon", url: "/icons/android-chrome-192x192.png" },
   ],
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    url: "https://cloud-snapp.vercel.app",
+    title: "CloudSnap | Private High-Performance Asset Hosting",
+    description: "Secure, lightning-fast media and asset hosting platform. Powered by Abhishek Singh.",
+    siteName: "CloudSnap",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "CloudSnap - Private High-Performance Asset Hosting",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CloudSnap | Private High-Performance Asset Hosting",
+    description: "Secure media and asset hosting by Abhishek Singh.",
+    creator: "@_abhishek2304",
+    images: ["/og-image.png"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -53,6 +81,25 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "CloudSnap",
+  "url": "https://cloud-snapp.vercel.app",
+  "author": {
+    "@type": "Person",
+    "name": "Abhishek Singh",
+    "jobTitle": "Full Stack Developer",
+    "url": "https://abhisheksingh.tech",
+    "sameAs": [
+      "https://github.com/AbhishekS04",
+      "https://www.linkedin.com/in/abhishek-singh-045312292",
+      "https://x.com/_abhishek2304"
+    ]
+  },
+  "description": "Private High-Performance Asset Hosting platform built by Abhishek Singh.",
 };
 
 import { UploadProvider } from "@/context/UploadContext";
@@ -67,12 +114,26 @@ export default function RootLayout({
   return (
     <ClerkProvider appearance={{ baseTheme: dark }}>
       <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${playfair.variable}`}>
+        <head>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          />
+        </head>
         <body className={`${outfit.className} bg-[#050505] text-zinc-100 antialiased`}>
           <UploadProvider>
             <SWRegistration />
             <Toaster position="top-right" />
             {children}
             <UploadFAB />
+            
+            {/* Identity Verification (rel="me") */}
+            <div className="sr-only" aria-hidden="true">
+              <a href="https://github.com/AbhishekS04" rel="me">GitHub</a>
+              <a href="https://www.linkedin.com/in/abhishek-singh-045312292" rel="me">LinkedIn</a>
+              <a href="https://x.com/_abhishek2304" rel="me">Twitter</a>
+              <a href="https://abhisheksingh.tech" rel="me">Portfolio</a>
+            </div>
           </UploadProvider>
         </body>
       </html>
