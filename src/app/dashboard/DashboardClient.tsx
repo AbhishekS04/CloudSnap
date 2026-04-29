@@ -7,7 +7,8 @@ import { toast } from 'react-hot-toast';
 
 import { ImageRecord, Folder } from '@/lib/types';
 import { FolderPlus, ChevronRight, Home, Cloud, Menu, X, Plus, Cpu } from 'lucide-react';
-import { useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@clerk/nextjs";
+import { createClerkSupabaseClient } from '@/lib/supabase-client';
 import { DeveloperHub } from '@/components/DeveloperHub';
 import { ClientUserButton } from "@/components/ClientUserButton";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,6 +38,7 @@ export default function DashboardClient({
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const { user } = useUser();
+    const { getToken } = useAuth();
     const { startUploads, uploads } = useUpload();
     const isUploadingGlobal = uploads.some(u => u.status === 'uploading');
 
@@ -103,6 +105,53 @@ export default function DashboardClient({
     }, [uploads, fetchData]);
 
     useEffect(() => {
+        let supabase: any = null;
+        let channel: any = null;
+
+        async function setupRealtime() {
+            const token = await getToken({ template: 'supabase' });
+            if (!token) return;
+
+            supabase = createClerkSupabaseClient(token);
+            
+            // Subscribe to changes in the assets table
+            channel = supabase
+                .channel('assets_realtime')
+                .on(
+                    'postgres_changes', 
+                    { event: '*', schema: 'public', table: 'assets' }, 
+                    (payload: any) => {
+                        console.log('Realtime update received:', payload);
+                        
+                        if (payload.eventType === 'INSERT') {
+                            const newAsset = payload.new;
+                            setImages(prev => {
+                                if (prev.some(img => img.id === newAsset.id)) return prev;
+                                return [newAsset, ...prev];
+                            });
+                        } else if (payload.eventType === 'UPDATE') {
+                            setImages(prev => prev.map(img => 
+                                img.id === payload.new.id ? { ...img, ...payload.new } : img
+                            ));
+                        } else if (payload.eventType === 'DELETE') {
+                            setImages(prev => prev.filter(img => img.id === payload.old.id));
+                        }
+                        
+                        // Trigger a small refresh for metadata/storage counts
+                        setStorageRefreshKey(prev => prev + 1);
+                    }
+                )
+                .subscribe();
+        }
+
+        setupRealtime();
+
+        return () => {
+            if (channel) channel.unsubscribe();
+        };
+    }, [getToken]);
+
+    useEffect(() => {
         fetchData();
 
         // Update breadcrumbs whenever current folder or all folders change
@@ -119,30 +168,16 @@ export default function DashboardClient({
             setBreadcrumbs([]);
         }
 
-        // Listen for global upload completions to update the list in real-time
+        // Listen for global upload completions (still useful for local state sync)
         const handleGlobalRefresh = (e: any) => {
-            const newAsset = e.detail?.asset;
-            if (newAsset) {
-                // If we're in the same folder as the new asset (or in 'All Assets')
-                if (!currentFolder?.id || newAsset.folder_id === currentFolder.id) {
-                    setImages(prev => {
-                        // Prevent duplicates if auto-refresh already caught it
-                        if (prev.some(img => img.id === newAsset.id)) return prev;
-                        return [newAsset, ...prev];
-                    });
-                }
-                setStorageRefreshKey(prev => prev + 1);
-            } else {
-                fetchData();
-            }
+            fetchData();
         };
         window.addEventListener('asset-uploaded', handleGlobalRefresh as EventListener);
 
-        // Auto-refresh every 30 seconds
+        // Auto-refresh now only runs every 2 minutes as a backup, since Realtime is primary
         const interval = setInterval(() => {
-            refreshIconRef.current?.startAnimation();
             fetchData();
-        }, 30000);
+        }, 120000);
         return () => {
             clearInterval(interval);
             window.removeEventListener('asset-uploaded', handleGlobalRefresh);
