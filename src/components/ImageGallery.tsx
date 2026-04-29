@@ -187,8 +187,9 @@ function ImageCard({
         e.stopPropagation();
         e.preventDefault();
         try {
-            // Copy the share landing page URL
-            const shareUrl = `${window.location.origin}/share/${image.id}`;
+            // Copy the share landing page URL - Use Vanity Name if possible
+            const identifier = encodeURIComponent(image.original_name || image.id);
+            const shareUrl = `${window.location.origin}/share/${identifier}`;
             await navigator.clipboard.writeText(shareUrl);
             setShareCopied(true);
             setTimeout(() => setShareCopied(false), 2000);

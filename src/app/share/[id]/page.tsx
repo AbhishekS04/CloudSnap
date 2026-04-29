@@ -8,15 +8,31 @@ interface PageProps {
     params: Promise<{ id: string }>;
 }
 
-async function getAsset(id: string) {
-    const { data: asset, error } = await supabaseAdmin
+async function getAsset(idOrSlug: string) {
+    // 1. Try UUID first (High Speed)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    
+    if (isUuid) {
+        const { data: asset } = await supabaseAdmin
+            .from('assets')
+            .select('*')
+            .eq('id', idOrSlug)
+            .single();
+        if (asset) return asset;
+    }
+
+    // 2. Fallback to Original Name (Vanity Slug)
+    // Note: We search for an exact match or a slugified match.
+    // Since the CDN already uses original_name, this is the most compatible way.
+    const { data: assets } = await supabaseAdmin
         .from('assets')
         .select('*')
-        .eq('id', id)
-        .single();
+        .eq('original_name', decodeURIComponent(idOrSlug))
+        .limit(1);
 
-    if (error || !asset) return null;
-    return asset;
+    if (assets && assets.length > 0) return assets[0];
+
+    return null;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

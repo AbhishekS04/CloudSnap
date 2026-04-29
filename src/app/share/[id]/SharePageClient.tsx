@@ -120,9 +120,39 @@ export function SharePageClient({ asset }: SharePageClientProps) {
                         <h1 className="text-3xl font-black tracking-tight text-white mb-2 leading-tight">
                             {asset.original_name}
                         </h1>
-                        <p className="text-zinc-500 text-sm font-medium">
-                            Synced via the CloudSnap decentralized media mesh.
-                        </p>
+                        
+                        {/* AI Intelligence Block */}
+                        {asset.ai_description && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3 }}
+                                className="mt-4 p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10"
+                            >
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Zap size={12} className="text-indigo-400 fill-indigo-400/20" />
+                                    <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">AI Intelligence Analysis</span>
+                                </div>
+                                <p className="text-xs text-zinc-400 italic leading-relaxed">
+                                    "{asset.ai_description}"
+                                </p>
+                                {Array.isArray(asset.ai_tags) && asset.ai_tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-3">
+                                        {asset.ai_tags.map((tag: string, i: number) => (
+                                            <span key={i} className="text-[9px] font-bold text-zinc-500 bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/30">
+                                                #{tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+
+                        {!asset.ai_description && (
+                            <p className="text-zinc-500 text-sm font-medium mt-2">
+                                Synced via the CloudSnap decentralized media mesh.
+                            </p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
