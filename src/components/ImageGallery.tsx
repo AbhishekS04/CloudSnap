@@ -407,17 +407,17 @@ function ImageCard({
                                                         if (e.key === 'Enter') handleRename();
                                                     }}
                                                     disabled={isSavingName}
-                                                    className="w-full bg-white/10 border border-white/20 rounded-lg pl-3 pr-12 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                                    className="w-full bg-black/40 backdrop-blur-xl border border-white/20 rounded-lg pl-3 pr-12 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-2xl"
                                                     placeholder="Enter name..."
                                                 />
-                                                <span className="absolute right-3 text-[10px] font-bold text-zinc-500 pointer-events-none select-none uppercase">
+                                                <span className="absolute right-3 text-[10px] font-bold text-zinc-400 pointer-events-none select-none uppercase">
                                                     {format === 'original' ? extension.replace('.', '') : format}
                                                 </span>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsRenaming(false); }}
-                                                className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors"
+                                                className="p-1.5 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg text-zinc-400 hover:text-white transition-colors shadow-2xl"
                                                 title="Cancel"
                                             >
                                                 <X className="w-3.5 h-3.5" />
