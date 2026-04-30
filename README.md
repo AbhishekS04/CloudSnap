@@ -36,17 +36,38 @@
 ## 🚀 Features
 
 ### Core Asset Management
-- **Smart Image Optimization**: Automatically generates **WebP** and **AVIF** variants for every uploaded image using `sharp`.
-- **Intelligent Video Processing**: Uses `ffmpeg` to generate:
-    - **Original Quality** (Fast-start optimized)
-    - **Compressed Preview** (For slow connections)
-    - **Thumbnails** (Instant seek previews)
+- **Telegram-Native Storage Engine**: All binaries are stored in a private Telegram channel, with Supabase used as metadata/indexing layer.
+- **Chunk-Aware Upload Pipeline**: Large uploads are split into **4MB chunks**, uploaded safely, and reassembled on demand.
+- **On-Demand Media Delivery**: `/api/cdn/[id]` serves originals plus runtime transforms (`w`, `fmt`, `q`) with `sharp`-powered optimization.
+- **Video-Friendly Delivery**: Supports byte-range streaming and chunk-aware seeking for smoother playback.
 - **Global & Folder-Based Organization**: 
     - Full folder creation and nested navigation support.
     - **"All Assets" Global View**: See everything in one place; deleting here removes the asset everywhere.
 - **Drag & Drop Upload Zone**: 
     - Supports multi-file uploads.
     - **Pinterest Integration**: Drag & drop URLs directly from Pinterest to import assets server-side.
+- **Resumable Upload Sessions**:
+    - Persistent upload queue via **IndexedDB**.
+    - Session restore after refresh/reopen.
+    - Chunk session tracking with server-side reconciliation.
+
+### Performance, Cache & Realtime
+- **Two-Tier Cache**:
+    - **L1**: In-process memory cache.
+    - **L2**: **Upstash Redis** cache for edge/serverless resilience.
+- **Realtime Dashboard Sync**: Supabase Realtime subscription updates asset state (insert/update/delete) without manual refresh.
+- **Storage Telemetry**: Live storage usage cards with role-aware quota display (Admin vs Demo).
+
+### Intelligence, Sharing & API
+- **AI Image Intelligence**: Gemini-powered description + tags generation for uploaded images (stored as metadata).
+- **Smart Share Links**:
+    - Share page supports UUID and vanity-style name lookup.
+    - Share UI includes direct download and CDN link copy actions.
+- **Developer Hub + API Keys**:
+    - Create/revoke scoped API keys.
+    - Programmatic uploads via `/api/v1/upload`.
+    - API asset listing/detail endpoints (`/api/v1/assets`, `/api/v1/assets/[id]`).
+- **Synchronized Deletion**: Asset deletion removes Telegram messages (including chunked uploads) plus DB records.
 
 ### Premium User Experience (UX)
 - **Glassmorphism UI**: Built with **Tailwind CSS v4**, featuring real-time blur effects, subtle borders, and deep zinc color palettes.
@@ -67,10 +88,15 @@
 
 ### Backend & Infrastructure
 - **Database**: Supabase (PostgreSQL)
-- **Storage**: Supabase Storage
+- **Primary Binary Storage**: Telegram Bot API + private storage channel
+- **Metadata/Indexing**: Supabase `assets` / `folders` / `upload_sessions` tables
+- **CDN Caching**: Upstash Redis (`@upstash/redis`) + in-memory L1 cache
 - **Image Processing**: `sharp` (Node.js)
-- **Video Processing**: `fluent-ffmpeg`, `ffmpeg-static`
+- **Video Processing/Compatibility**: `fluent-ffmpeg`, `ffmpeg-static`, `@ffprobe-installer/ffprobe`
 - **Multipart Parsing**: `busboy` (Stream-based parsing for memory efficiency)
+- **AI Metadata**: Google Gemini (`@google/generative-ai`)
+- **Realtime Data Sync**: Supabase Realtime with Clerk-authenticated client
+- **Service Worker**: Manual SW registration for PWA groundwork
 
 ---
 
@@ -86,10 +112,10 @@
 ### 2. High-Performance Video Uploads
 **Challenge**: Next.js Body Parser limits and memory issues with large video files.
 **Solution**: 
-- Disabled the default Next.js body parser (`export const config = { api: { bodyParser: false } }`).
-- Implemented a raw stream handler using `busboy`.
-- Videos are streamed directly to buffers for processing, then uploaded to Supabase Storage in parallel chunks.
-- **FFmpeg** is used to strip metadata for privacy while preserving quality, and to generate lightweight previews.
+- Raised Next.js proxy/server action body limits and enforced route-level size guards.
+- Implemented robust multipart parsing using `busboy`.
+- Large payloads are chunked and transferred to Telegram-backed storage safely.
+- **FFmpeg** tooling is used for media probing/compatibility workflows where needed.
 
 ### 3. Hydration Mismatch Resolution
 **Challenge**: Integrating third-party auth components (`<UserButton />`) caused "Hydration failed" errors due to server/client attribute mismatches.
@@ -103,9 +129,9 @@
 **Solution**: 
 - The "All Assets" view was refactored from a "Uncategorized Only" filter to a true **Global Query**.
 - The Delete API (`DELETE /api/images`) was updated to perform a cascade delete:
-    1.  Removes all storage variants (Original, WebP, AVIF, Thumbnails).
+    1.  Deletes related Telegram message objects (single or chunked asset).
     2.  Deletes the database record.
-    3.  Triggers a frontend SWR/State revalidation to instantly update the UI.
+    3.  Triggers frontend state/realtime refresh to instantly update the UI.
 
 ---
 
@@ -115,6 +141,49 @@
 - Implemented a Server-Side Admin Check (`isUserAdmin`) using `ADMIN_EMAIL` environment variable.
 - Non-admin users are automatically routed to a **MDX-rendered Documentation View** (Guest Mode).
 - This ensures sensitive operations (Upload/Delete) are physically inaccessible to unauthorized users.
+
+### 6. Redis-Backed CDN Caching
+**Challenge**: Serving transformed assets quickly under serverless cold starts while avoiding repeated Telegram fetch + transform costs.
+**Solution**:
+- Implemented a two-layer cache strategy:
+  - L1 in-process `Map` for immediate hot hits.
+  - L2 Upstash Redis for cross-instance cache persistence.
+- Added transform-aware cache keys (`id + w + fmt + q`) and cache source headers for observability.
+
+### 7. Resumable Upload Queue Persistence
+**Challenge**: Upload progress was lost on refresh/navigation for large chunked uploads.
+**Solution**:
+- Added IndexedDB persistence (`cloudsnap-upload-queue`) for upload state.
+- Added `/api/upload/session` lifecycle endpoints (`POST`, `GET`, `PATCH`) and chunk confirmation tracking.
+- Queue auto-restores pending jobs and resumes from confirmed chunk index.
+
+### 8. Telegram Physical Deletion Sync
+**Challenge**: Deleting an asset from DB left orphaned Telegram files/messages.
+**Solution**:
+- Stored Telegram `message_id` references per asset/chunk.
+- On asset deletion, the API performs Telegram deletion (bulk + fallback) before DB cleanup.
+- Keeps metadata and binary layer lifecycle in sync.
+
+### 9. AI Metadata Enrichment (Gemini)
+**Challenge**: Asset discovery and semantic context were weak with filename-only indexing.
+**Solution**:
+- Added Gemini image analysis at upload time for eligible images.
+- Stored `ai_description` + `ai_tags` with each asset.
+- Exposed AI metadata in share experience for richer context.
+
+### 10. Programmatic MaaS Access
+**Challenge**: Third-party systems needed secure server-to-server media upload/access.
+**Solution**:
+- Added API-key authentication (`x-api-key` / `Authorization: Bearer`).
+- Implemented scoped API keys with optional folder restrictions.
+- Added `/api/v1/upload`, `/api/v1/assets`, and key introspection endpoints.
+
+### 11. Realtime Dashboard Synchronization
+**Challenge**: Asset list and storage UI required manual refresh after remote mutations.
+**Solution**:
+- Added Supabase Realtime channel subscription on `assets`.
+- Insert/update/delete events mutate client state instantly.
+- Storage cards and gallery state auto-refresh with minimal polling fallback.
 
 ---
 
