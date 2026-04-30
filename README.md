@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://rdxqqgntmtzvqsmepmls.supabase.co/storage/v1/object/public/assets/original/dac3bbda-bf99-47a7-bc22-40dcdbd537ab.png" alt="CloudSnap Banner" width="100%" style="border-radius: 10px;" />
+  <img src="https://cloud-snapp.vercel.app/api/cdn/screenshot-from-2026-04-30-14-15-20.png?fmt=webp" alt="CloudSnap Banner" width="100%" style="border-radius: 10px;" />
 
   <br />
   
