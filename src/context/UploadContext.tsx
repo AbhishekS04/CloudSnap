@@ -2,6 +2,13 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import {
+  clearPersistedUploads,
+  deletePersistedUpload,
+  listPersistedUploads,
+  savePersistedUpload,
+  updatePersistedUpload,
+} from '@/lib/upload-persistence';
 
 // ─────────────────────────────────────────────
 // Types
@@ -18,6 +25,9 @@ export interface UploadItem {
   speed?: number;
   error?: string;
   folderId?: string | null;
+  sessionId?: string | null;
+  telegramFileIds?: string[];
+  telegramMessageIds?: number[];
 }
 
 interface UploadContextType {
@@ -41,28 +51,97 @@ const UploadContext = createContext<UploadContextType | undefined>(undefined);
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
   const processingRef = useRef(false);
 
   const removeUpload = useCallback((id: string) => {
     setUploads(prev => prev.filter(u => u.id !== id));
+    deletePersistedUpload(id).catch(err => console.warn('[Upload] Failed to remove persisted upload:', err));
   }, []);
 
   const resetUploads = useCallback(() => {
     setUploads([]);
     processingRef.current = false;
+    clearPersistedUploads().catch(err => console.warn('[Upload] Failed to clear persisted uploads:', err));
   }, []);
 
   const startUploads = useCallback((files: File[], folderId?: string | null) => {
-    const newItems: UploadItem[] = files.map(file => ({
-      id: Math.random().toString(36).substring(7),
-      file,
-      fileName: file.name,
-      progress: 0,
-      status: 'pending',
-      folderId: folderId || null
-    }));
+    void (async () => {
+      const now = Date.now();
+      const newItems: UploadItem[] = files.map(file => ({
+        id: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).substring(7),
+        file,
+        fileName: file.name,
+        progress: 0,
+        status: 'pending',
+        folderId: folderId || null,
+        telegramFileIds: [],
+        telegramMessageIds: [],
+      }));
 
-    setUploads(prev => [...prev, ...newItems]);
+      await Promise.all(newItems.map(item => savePersistedUpload({
+        ...item,
+        folderId: item.folderId ?? null,
+        fileSize: item.file.size,
+        mimeType: item.file.type || 'application/octet-stream',
+        status: 'pending',
+        sessionId: null,
+        createdAt: now,
+        updatedAt: now,
+      })));
+
+      setUploads(prev => [...prev, ...newItems]);
+    })().catch(err => {
+      console.error('[Upload] Failed to persist upload queue:', err);
+      toast.error('Could not prepare upload queue');
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restoreUploads = async () => {
+      try {
+        const persisted = await listPersistedUploads();
+        if (cancelled) return;
+
+        const restored = persisted
+          .filter(item => item.status !== 'completed')
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .map<UploadItem>(item => ({
+            id: item.id,
+            file: item.file,
+            fileName: item.fileName,
+            progress: item.status === 'uploading' ? item.progress : item.progress || 0,
+            status: item.status === 'uploading' ? 'pending' : item.status,
+            currentChunk: item.currentChunk,
+            totalChunks: item.totalChunks,
+            speed: item.speed,
+            error: item.error,
+            folderId: item.folderId,
+            sessionId: item.sessionId,
+            telegramFileIds: item.telegramFileIds || [],
+            telegramMessageIds: item.telegramMessageIds || [],
+          }));
+
+        if (restored.length > 0) {
+          setUploads(restored);
+          toast('Restored pending upload queue');
+        }
+      } catch (err) {
+        console.warn('[Upload] Failed to restore persisted uploads:', err);
+      } finally {
+        if (!cancelled) setIsHydrated(true);
+      }
+    };
+
+    restoreUploads();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Queue Processor ──────────────────────────────────────────────────────
@@ -70,6 +149,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const processQueue = async () => {
       if (processingRef.current) return;
+      if (!isHydrated) return;
       
       const pendingItem = uploads.find(u => u.status === 'pending');
       if (!pendingItem) return;
@@ -80,24 +160,28 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       setUploads(prev => prev.map(u => 
         u.id === pendingItem.id ? { ...u, status: 'uploading' } : u
       ));
+      updatePersistedUpload(pendingItem.id, { status: 'uploading' }).catch(() => {});
 
       try {
         await uploadFile(pendingItem);
         setUploads(prev => prev.map(u => 
           u.id === pendingItem.id ? { ...u, status: 'completed', progress: 100 } : u
         ));
-      } catch (err: any) {
+        deletePersistedUpload(pendingItem.id).catch(() => {});
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Upload failed';
         console.error('[Upload] Failed:', err);
         setUploads(prev => prev.map(u => 
-          u.id === pendingItem.id ? { ...u, status: 'error', error: err.message } : u
+          u.id === pendingItem.id ? { ...u, status: 'error', error: message } : u
         ));
+        updatePersistedUpload(pendingItem.id, { status: 'error', error: message }).catch(() => {});
       } finally {
         processingRef.current = false;
       }
     };
 
     processQueue();
-  }, [uploads]);
+  }, [uploads, isHydrated]);
 
   const uploadFile = async (item: UploadItem) => {
     const { file, id, folderId } = item;
@@ -106,33 +190,71 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     const startTime = Date.now();
     let uploadedSize = 0;
 
-    // Step 1: Create Session
-    let sessionId: string | null = null;
+    // Step 1: Create or resume session
+    let sessionId: string | null = item.sessionId || null;
+    let telegramFileIds: string[] = [...(item.telegramFileIds || [])];
+    let telegramMessageIds: number[] = [...(item.telegramMessageIds || [])];
+    let startChunk = telegramFileIds.length;
+
+    if (sessionId) {
+      try {
+        const existingSession = await fetch(`/api/upload/session?sessionId=${encodeURIComponent(sessionId)}`);
+        if (existingSession.ok) {
+          const sessionData = await existingSession.json();
+          if (sessionData.status === 'complete') return;
+
+          const confirmedChunkIds = Array.isArray(sessionData.confirmedChunkIds)
+            ? sessionData.confirmedChunkIds
+            : [];
+
+          if (confirmedChunkIds.length > telegramFileIds.length) {
+            telegramFileIds = confirmedChunkIds;
+          }
+          startChunk = Math.min(telegramFileIds.length, totalChunks);
+          uploadedSize = Math.min(file.size, startChunk * CHUNK_SIZE);
+        } else {
+          sessionId = null;
+          telegramFileIds = [];
+          telegramMessageIds = [];
+          startChunk = 0;
+        }
+      } catch (e) {
+        console.warn('[Upload] Session resume failed, creating a new session:', e);
+        sessionId = null;
+        telegramFileIds = [];
+        telegramMessageIds = [];
+        startChunk = 0;
+      }
+    }
+
     try {
-      const sessionRes = await fetch('/api/upload/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          mimeType,
-          totalChunks,
-          folderId,
-        }),
-      });
-      if (sessionRes.ok) {
-        const data = await sessionRes.json();
-        sessionId = data.sessionId;
+      if (!sessionId) {
+        const sessionRes = await fetch('/api/upload/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType,
+            totalChunks,
+            folderId,
+          }),
+        });
+        if (sessionRes.ok) {
+          const data = await sessionRes.json();
+          sessionId = data.sessionId;
+          setUploads(prev => prev.map(u => 
+            u.id === id ? { ...u, sessionId } : u
+          ));
+          await updatePersistedUpload(id, { sessionId });
+        }
       }
     } catch (e) {
       console.warn('[Upload] Session non-fatal error:', e);
     }
 
-    const telegramFileIds: string[] = [];
-    const telegramMessageIds: number[] = [];
-
     // Step 2: Upload Chunks
-    for (let i = 0; i < totalChunks; i++) {
+    for (let i = startChunk; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(file.size, start + CHUNK_SIZE);
       const chunk = file.slice(start, end);
@@ -146,6 +268,12 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           progress: Math.round((i / totalChunks) * 100) 
         } : u
       ));
+      updatePersistedUpload(id, {
+        currentChunk: i + 1,
+        totalChunks,
+        progress: Math.round((i / totalChunks) * 100),
+        status: 'uploading',
+      }).catch(() => {});
 
       const formData = new FormData();
       formData.append('file', chunk, file.name);
@@ -175,9 +303,17 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         u.id === id ? { 
           ...u, 
           progress: Math.round(((i + 1) / totalChunks) * 100),
-          speed: parseFloat(speed.toFixed(2))
+          speed: parseFloat(speed.toFixed(2)),
+          telegramFileIds,
+          telegramMessageIds,
         } : u
       ));
+      await updatePersistedUpload(id, {
+        progress: Math.round(((i + 1) / totalChunks) * 100),
+        speed: parseFloat(speed.toFixed(2)),
+        telegramFileIds,
+        telegramMessageIds,
+      });
     }
 
     // Step 3: Finalize
