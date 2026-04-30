@@ -1,5 +1,16 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+/*
+  _______       _    _ _____ _______ _____ 
+ |__   __|     | |  | |_   _|__   __|_   _|
+    | |   __ _ | |__| | | |    | |    | |  
+    | |  / _` ||  __  | | |    | |    | |  
+    | | | (_| || |  | |_| |_   | |   _| |_ 
+    |_|  \__,_||_|  |_|_____|  |_|  |_____|
+
+ "Tahiti, Arthur! Mangoes! No more code copying! Just us and the digital sunrise!"
+*/
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || "");
 
 /**

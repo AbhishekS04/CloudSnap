@@ -1,5 +1,20 @@
 "use client";
 
+/*
+ _________________________________________
+/ You’re like a gray squirrel in a field  \
+\ of red ones. You don't belong here.     /
+ -----------------------------------------
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||
+
+ "If you're reading this, you've probably copied my Sidebar. 
+  Just know that I know. And I'm disappointed, boah."
+*/
+
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";

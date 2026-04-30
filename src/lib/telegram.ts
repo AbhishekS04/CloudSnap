@@ -5,6 +5,15 @@
  * Provides helpers for:
  * - Uploading files to a private Telegram channel (single or chunked)
  * - Downloading files from Telegram (single or chunked, rejoined)
+ * 
+ *  _____   _    _             _    _        _____      _              _   _ 
+ * |_   _| | |  | |           | |  | |      |  __ \    | |            | \ | |
+ *   | |   | |__| | __ _ _   _| |__| | __ _ | |  | | __| | __ _ _ __  |  \| |
+ *   | |   |  __  |/ _` | \ / |  __  |/ _` || |  | |/ _` |/ _` | '_ \ | . ` |
+ *  _| |_  | |  | | (_| |\ V /| |  | | (_| || |__| | (_| | (_| | | | || |\  |
+ * |_____| |_|  |_|\__,_| \_/ |_|  |_|\__,_||_____/ \__,_|\__,_|_| |_||_| \_|
+ * 
+ * "I have a goddamn plan! I just need you to stop copying my code and have some FAITH!"
  */
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;

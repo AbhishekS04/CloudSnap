@@ -50,8 +50,9 @@ telegram.ts.stuck
 
 # Graphify & Research Tools
 .agent
+.codex
 /graphify-out
-export_to_obsidian.py
+scripts/export_to_obsidian.py
 __pycache__/
 .ipynb_checkpoints/
 

@@ -4,6 +4,23 @@ import { requireAuth } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { slugify } from '@/lib/utils';
 
+/*
+   ____        _   _                     
+  / __ \      | | | |                    
+ | |  | |_   _| |_| | __ ___      _____  
+ | |  | | | | | __| |/ _` \ \ /\ / / __| 
+ | |__| | |_| | |_| | (_| |\ V  V /\__ \ 
+  \____/ \__,_|\__|_|\__,_| \_/\_/ |___/ 
+  ______              _      _  __       
+ |  ____|            | |    (_)/ _|      
+ | |__ ___  _ __     | |     _| |_ ___   
+ |  __/ _ \| '__|    | |    | |  _/ _ \  
+ | | | (_) | |       | |____| | ||  __/  
+ |_|  \___/|_|       |______|_|_| \___|  
+
+ "Outlaws for life... but copycats are just for eternity."
+*/
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {

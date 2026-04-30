@@ -2,6 +2,17 @@ import { currentUser } from "@clerk/nextjs/server";
 import { ADMIN_EMAILS as CONFIG_ADMIN_EMAILS } from "@/lib/demo-config";
 import { supabaseAdmin } from "./supabase-server";
 
+/*
+  ____  _   _ _____   __  __  ___  ____  _____     _  ___  ____  
+ / __ \| \ | | ____| |  \/  |/ _ \|  _ \| ____|   | |/ _ \| __ ) 
+| |  | |  \| |  _|   | |\/| | | | | |_) |  _|  _  | | | | |  _ \ 
+| |__| | |\  | |___  | |  | | |_| |  _ <| |___| |_| | |_| | |_) |
+ \____/|_| \_|_____| |_|  |_|\___/|_| \_\_____|\___/ \___/|____/ 
+
+ "One more job, Arthur... and then we're out. 
+  One more stolen line of code and we're gone!"
+*/
+
 export const DEMO_LIMITS = {
     MAX_UPLOADS: 1,
     MAX_SIZE_BYTES: 10 * 1024 * 1024, // 10MB
