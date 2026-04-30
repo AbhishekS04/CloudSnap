@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
 
         let query = supabaseAdmin
             .from('assets')
-            .select('*', { count: 'exact' });
+            .select('*', { count: 'exact' })
+            .eq('user_id', keyData.user_id);
 
         // Enforce folder scope if API key is restricted
         if (keyData.folder_id) {
