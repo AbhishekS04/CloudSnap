@@ -3,8 +3,8 @@
 :root {
   --foreground-rgb: 244, 244, 245;
   /* zinc-100 */
-  --background-start-rgb: 5, 5, 5;
-  --background-end-rgb: 5, 5, 5;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
 
   --primary-font: var(--font-outfit), system-ui, sans-serif;
   --display-font: var(--font-playfair), serif;

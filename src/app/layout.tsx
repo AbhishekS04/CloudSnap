@@ -38,6 +38,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://cloud-snapp.vercel.app"),
   title: "CloudSnap | Private High-Performance Asset Hosting",
   description: "Secure, lightning-fast media and asset hosting platform built for developers. High-performance delivery with advanced optimization, powered by Abhishek Singh.",
   keywords: ["CloudSnap", "Asset Hosting", "Abhishek Singh", "Full Stack Developer", "Private Hosting", "Next.js", "Supabase", "Kolkata Developer"],
@@ -120,7 +121,7 @@ export default function RootLayout({
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
         </head>
-        <body className={`${outfit.className} bg-[#050505] text-zinc-100 antialiased`}>
+        <body className={`${outfit.className} bg-black text-zinc-100 antialiased`}>
           <UploadProvider>
             <SWRegistration />
             <Toaster position="top-right" />
