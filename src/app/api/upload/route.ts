@@ -378,12 +378,12 @@ export async function POST(req: NextRequest) {
                 fetch(`${cdnBase}?w=600&fmt=webp`), // sm
                 fetch(cdnBase),                      // original
             ])
-            .then(() => log('info', 'CDN prewarm complete', { fileName }))
+            .then(() => log('info', 'CDN prewarm complete', { id }))
             .catch(() => {}); // silent fail — never block the response
         }
 
         // ── Return response ────────────────────────────────────────────────
-        const cdnUrl = `/api/cdn/${encodeURIComponent(fileName || id)}`;
+        const cdnUrl = `/api/cdn/${encodeURIComponent(fileName)}`;
         const isVideoAsset = mimeType.startsWith('video/');
 
         return NextResponse.json({

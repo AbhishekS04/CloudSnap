@@ -366,7 +366,6 @@ function ImageCard({
         e.preventDefault();
         try {
             // Build the PRETTY URL with the current name for the clipboard
-            // (UUID is used internally for rendering; name-based URL is what humans share)
             const prettyBase = `/api/cdn/${encodeURIComponent(image.original_name)}`;
             const internalUrl = getUrl(); // UUID-based, used to extract current transform params
             const paramStr = internalUrl.includes('?') ? internalUrl.split('?')[1] : '';
