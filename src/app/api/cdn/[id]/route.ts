@@ -199,7 +199,12 @@ export async function GET(
         : Math.min(byteStart + 1024 * 1024, totalLength - 1); // default: 1MB window
 
       const clampedStart = Math.max(0, byteStart);
-      const clampedEnd   = Math.min(byteEnd, totalLength - 1);
+      // ENFORCING MAX 4MB RANGE WINDOW:
+      // If the browser asks for the whole rest of the video (bytes=0-),
+      // we do NOT want to download 50MB of chunks into memory at once.
+      // We restrict the response to 4MB, and the browser will automatically ask for the next part.
+      const MAX_CHUNK_WINDOW = 4 * 1024 * 1024;
+      const clampedEnd   = Math.min(byteEnd, Math.min(totalLength - 1, clampedStart + MAX_CHUNK_WINDOW - 1));
 
       if (asset.is_chunked && (asset.telegram_file_ids as string[]).length > 1 && totalLength > 0) {
         // Only fetch the specific Telegram chunk(s) that contain the byte range
