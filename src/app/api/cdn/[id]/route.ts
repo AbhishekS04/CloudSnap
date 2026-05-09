@@ -115,8 +115,10 @@ export async function GET(
 
     // Use the actual asset ID for cache keys to prevent collisions if names change
     const assetId = asset.id;
-    // transformKey is stable even if the file is renamed — keyed on UUID not filename
+    // UUID-based key (stable, used for cache storage)
     const transformKey = `cs:${assetId}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
+    // URL-path-based alias key (used by Edge middleware, which only knows the URL id)
+    const urlPathKey   = `cs:${id}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
 
     // ── 2. Determine MIME & base response headers ──────────────────────────
     const mimeType     = asset.mime_type as string;
@@ -128,6 +130,7 @@ export async function GET(
     const baseHeaders: Record<string, string> = {
       'Content-Disposition':         `${isDownload ? 'attachment' : 'inline'}; filename="${searchParams.get('name') || safeFilename}"`,
       'Cache-Control':               'public, s-maxage=31536000, stale-while-revalidate=59, immutable',
+      'Vary':                        'Accept',
       'Access-Control-Allow-Origin': '*',
       'X-CloudSnap-Asset-Id':        assetId,
       'X-CloudSnap-Chunked':         String(asset.is_chunked),
@@ -297,10 +300,17 @@ export async function GET(
 
       outputBuffer = await pipeline.toBuffer();
       // 7-day TTL: survives Vercel redeployments (edge cache clears, Redis doesn't)
-      await setCache(transformKey, outputBuffer, 604800, true);
+      // Store under both UUID key (canonical) and URL-path key (for Edge middleware lookup)
+      await Promise.all([
+        setCache(transformKey, outputBuffer, 604800, true),
+        ...(urlPathKey !== transformKey ? [setCache(urlPathKey, outputBuffer, 604800, true)] : []),
+      ]);
     } else if (!asset.is_chunked) {
       // Cache the untransformed original (standard 700KB gate, 24h)
-      await setCache(transformKey, outputBuffer);
+      await Promise.all([
+        setCache(transformKey, outputBuffer),
+        ...(urlPathKey !== transformKey ? [setCache(urlPathKey, outputBuffer)] : []),
+      ]);
     }
 
     // ── 8. Final Buffered Response ────────────────────────────────────────

@@ -105,6 +105,8 @@ export function Sidebar({
                         src="/icons/android-chrome-192x192.png"
                         alt="CloudSnap Logo"
                         fill
+                        sizes="40px"
+                        priority
                         className="object-cover"
                     />
                 </div>

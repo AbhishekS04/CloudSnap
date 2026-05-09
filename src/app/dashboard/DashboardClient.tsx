@@ -502,8 +502,8 @@ export default function DashboardClient({
                                         filterType={filterType}
                                         userRole={userRole}
                                         currentUserId={user?.id}
-                                        folders={allFolders.filter(f => f.parent_id === (currentFolder?.id || null))}
-
+                                        allFolders={allFolders}
+                                        folders={currentFolder ? allFolders.filter(f => f.parent_id === currentFolder.id) : []}
 
                                         onDelete={(id) => {
                                             const img = images.find(i => i.id === id);

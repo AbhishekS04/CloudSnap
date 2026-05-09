@@ -1,17 +1,19 @@
 "use client";
 
 import { ImageRecord, Folder } from '@/lib/types';
-import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2, File, Archive, Link as LinkIcon, Edit2, X } from 'lucide-react';
-import { useState } from 'react';
+import { Copy, Trash2, Check, ExternalLink, Download, FileText, Share2, File, Archive, Link as LinkIcon, Edit2, X, FolderInput, CheckSquare, Square, ChevronDown } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FolderCard } from './FolderCard';
 import { VideoPlayer } from './VideoPlayer';
 import { cn } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 interface ImageGalleryProps {
     images: (ImageRecord & { avif?: any })[];
     filterType?: 'all' | 'photos' | 'videos' | 'documents';
     folders?: Folder[];
+    allFolders?: Folder[];
     onDelete: (id: string) => void;
     onRename?: (id: string, newName: string, cdnUrl?: string) => void;
     onNavigate?: (folder: Folder) => void;
@@ -26,6 +28,7 @@ export function ImageGallery({
     images, 
     filterType = 'all', 
     folders = [], 
+    allFolders = [],
     onDelete, 
     onRename,
     onNavigate, 
@@ -35,12 +38,65 @@ export function ImageGallery({
     currentUserId
 }: ImageGalleryProps) {
 
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [moveTargetId, setMoveTargetId] = useState<string>('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isMoving, setIsMoving] = useState(false);
+
     const displayedImages = images.filter(img => {
         if (filterType === 'photos') return img.mime_type.startsWith('image/');
         if (filterType === 'videos') return img.mime_type.startsWith('video/');
         if (filterType === 'documents') return img.mime_type === 'application/pdf';
         return true;
     });
+
+    const toggleSelect = useCallback((id: string, shiftKey?: boolean) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const selectAll = () => setSelectedIds(new Set(displayedImages.map(i => i.id)));
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const handleBulkMove = async () => {
+        if (!moveTargetId || selectedIds.size === 0) return;
+        setIsMoving(true);
+        try {
+            const res = await fetch('/api/assets/batch', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: [...selectedIds], folderId: moveTargetId }),
+            });
+            if (!res.ok) throw new Error((await res.json()).error);
+            onMoveImage?.(moveTargetId, [...selectedIds]);
+            toast.success(`Moved ${selectedIds.size} asset${selectedIds.size > 1 ? 's' : ''}`);
+            clearSelection();
+            setMoveTargetId('');
+        } catch (e: any) {
+            toast.error(e.message || 'Move failed');
+        } finally {
+            setIsMoving(false);
+        }
+    };
+
+    const handleDropImages = useCallback((folderId: string, imageIds: string[]) => {
+        // If dragged image is part of selection, move all selected
+        const idsToMove = selectedIds.has(imageIds[0]) && selectedIds.size > 1
+            ? [...selectedIds]
+            : imageIds;
+        fetch('/api/assets/batch', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: idsToMove, folderId }),
+        }).then(r => r.json()).then(() => {
+            onMoveImage?.(folderId, idsToMove);
+            toast.success(`Moved ${idsToMove.length} asset${idsToMove.length > 1 ? 's' : ''}`);
+            clearSelection();
+        }).catch(() => toast.error('Move failed'));
+    }, [selectedIds, onMoveImage]);
 
     if (displayedImages.length === 0 && folders.length === 0) {
         return (
@@ -52,23 +108,122 @@ export function ImageGallery({
     }
 
     return (
-        <motion.div
-            layout
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-        >
-            <AnimatePresence mode='popLayout'>
-                {displayedImages.map((image) => (
-                    <ImageCard 
-                        key={image.id} 
-                        image={image} 
-                        onDelete={onDelete}
-                        onRename={onRename}
-                        isTrial={userRole === 'DEMO' && !!currentUserId && image.user_id === currentUserId}
+        <div className="space-y-4">
+            {/* Bulk Action Toolbar */}
+            <AnimatePresence>
+                {selectedIds.size > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -12 }}
+                        className="flex items-center gap-3 px-4 py-3 bg-black/40 backdrop-blur-2xl border border-indigo-500/30 rounded-2xl shadow-xl shadow-indigo-500/10 sticky top-4 z-40"
+                    >
+                        <span className="text-sm font-semibold text-indigo-400">{selectedIds.size} selected</span>
+                        <div className="flex-1" />
+                        {(allFolders.length > 0 || folders.length > 0) && (
+                            <>
+                                <div className="relative">
+                                    <button 
+                                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                        className="text-sm bg-black/40 backdrop-blur-xl border border-white/10 text-zinc-200 rounded-xl px-4 py-2 flex items-center justify-between w-48 hover:bg-white/5 transition-all outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                    >
+                                        <span className="truncate">
+                                            {moveTargetId === 'root' ? '📂 Root (no folder)' : 
+                                             moveTargetId ? (allFolders.length > 0 ? allFolders : folders).find(f => f.id === moveTargetId)?.name : 
+                                             'Move to folder…'}
+                                        </span>
+                                        <ChevronDown className={cn("w-4 h-4 text-zinc-400 transition-transform duration-200", isDropdownOpen && "rotate-180")} />
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {isDropdownOpen && (
+                                            <>
+                                                <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                                                <motion.div 
+                                                    initial={{ opacity: 0, y: -5, scale: 0.95 }} 
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }} 
+                                                    exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                                                    transition={{ duration: 0.15 }}
+                                                    className="absolute top-full mt-2 left-0 w-48 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 flex flex-col p-1.5"
+                                                >
+                                                    <button
+                                                        onClick={() => { setMoveTargetId('root'); setIsDropdownOpen(false); }}
+                                                        className={cn(
+                                                            "text-left px-3 py-2 text-sm rounded-xl transition-all flex items-center gap-2",
+                                                            moveTargetId === 'root' ? "bg-indigo-600/20 text-indigo-400 font-medium" : "text-zinc-300 hover:text-white hover:bg-white/5"
+                                                        )}
+                                                    >
+                                                        📂 Root (no folder)
+                                                    </button>
+                                                    <div className="h-px bg-white/10 my-1 mx-2" />
+                                                    {(allFolders.length > 0 ? allFolders : folders).map(f => (
+                                                        <button
+                                                            key={f.id}
+                                                            onClick={() => { setMoveTargetId(f.id); setIsDropdownOpen(false); }}
+                                                            className={cn(
+                                                                "text-left px-3 py-2 text-sm rounded-xl transition-all truncate",
+                                                                moveTargetId === f.id ? "bg-indigo-600/20 text-indigo-400 font-medium" : "text-zinc-300 hover:text-white hover:bg-white/5"
+                                                            )}
+                                                        >
+                                                            {f.name}
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                                <button
+                                    onClick={handleBulkMove}
+                                    disabled={!moveTargetId || isMoving}
+                                    className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition-all active:scale-95"
+                                >
+                                    <FolderInput className="w-4 h-4" />
+                                    {isMoving ? 'Moving…' : 'Move'}
+                                </button>
+                            </>
+                        )}
+                        <button
+                            onClick={selectAll}
+                            className="text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-xl hover:bg-zinc-800 transition-all"
+                        >
+                            All
+                        </button>
+                        <button
+                            onClick={clearSelection}
+                            className="p-1.5 text-zinc-500 hover:text-white rounded-xl hover:bg-zinc-800 transition-all"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {folders.map(folder => (
+                    <FolderCard
+                        key={folder.id}
+                        folder={folder}
+                        onNavigate={onNavigate!}
+                        onDropImages={handleDropImages}
+                        onDelete={onDeleteFolder}
                     />
                 ))}
-            </AnimatePresence>
-        </motion.div>
-
+                <AnimatePresence mode='popLayout'>
+                    {displayedImages.map((image) => (
+                        <ImageCard 
+                            key={image.id} 
+                            image={image} 
+                            onDelete={onDelete}
+                            onRename={onRename}
+                            isTrial={userRole === 'DEMO' && !!currentUserId && image.user_id === currentUserId}
+                            isSelected={selectedIds.has(image.id)}
+                            onToggleSelect={toggleSelect}
+                        />
+                    ))}
+                </AnimatePresence>
+            </motion.div>
+        </div>
     );
 }
 
@@ -76,12 +231,16 @@ function ImageCard({
     image, 
     onDelete, 
     onRename,
-    isTrial 
+    isTrial,
+    isSelected,
+    onToggleSelect,
 }: { 
     image: ImageRecord & { avif?: any }, 
     onDelete: (id: string) => void,
     onRename?: (id: string, newName: string, cdnUrl?: string) => void,
-    isTrial?: boolean 
+    isTrial?: boolean,
+    isSelected?: boolean,
+    onToggleSelect?: (id: string) => void,
 }) {
     const [isRenaming, setIsRenaming] = useState(false);
     const splitName = (fullName: string) => {
@@ -242,7 +401,7 @@ function ImageCard({
         document.body.removeChild(link);
     };
 
-    // Drag Start Handler
+    // Drag Start — carries this image's ID (FolderCard uses it; batch logic checks selection)
     const handleDragStart = (e: React.DragEvent) => {
         e.dataTransfer.setData('imageId', image.id);
         e.dataTransfer.effectAllowed = 'move';
@@ -280,18 +439,32 @@ function ImageCard({
                 layout: { type: "spring", stiffness: 400, damping: 30 },
                 opacity: { duration: 0.2 }
             }}
-            className="group relative bg-zinc-950 border border-white/5 rounded-[2rem] overflow-hidden hover:border-white/10 transition-colors duration-500 shadow-2xl isolate"
+            className={cn(
+                "group relative bg-zinc-950 border rounded-[2rem] overflow-hidden transition-colors duration-500 shadow-2xl isolate",
+                isSelected
+                    ? "border-indigo-500 ring-2 ring-indigo-500/40 shadow-indigo-500/20"
+                    : "border-white/5 hover:border-white/10"
+            )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={(e) => {
-                // On mobile/touch this usually toggles, but we want to prevent navigation if we're showing the overlay
-                if (window.innerWidth < 1024) {
-                    setIsHovered(!isHovered);
-                }
+                if (window.innerWidth < 1024) setIsHovered(!isHovered);
             }}
             draggable
             onDragStartCapture={handleDragStart}
         >
+            {/* Checkbox — top-left, visible on hover or when selected */}
+            <button
+                onClick={e => { e.stopPropagation(); onToggleSelect?.(image.id); }}
+                className={cn(
+                    "absolute top-4 left-4 z-30 p-1.5 rounded-full backdrop-blur-xl border transition-all duration-300",
+                    isSelected
+                        ? "opacity-100 bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/30 scale-100"
+                        : "opacity-0 group-hover:opacity-100 bg-black/30 border-white/20 text-zinc-300 hover:text-white hover:bg-black/50 hover:border-white/40 scale-95 hover:scale-100"
+                )}
+            >
+                {isSelected ? <Check className="w-3.5 h-3.5" strokeWidth={3} /> : null}
+            </button>
             <div className="relative w-full aspect-[4/5] overflow-hidden">
                 {isVideo ? (
                     <VideoPlayer
@@ -379,7 +552,11 @@ function ImageCard({
 
 
                 {/* Glassy Overlay for Meta Data */}
-                <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+                {/* We shift left padding to leave room for the selection checkbox at left-4 */}
+                <div className={cn(
+                    "absolute top-4 right-4 flex items-center justify-between z-20 transition-all duration-300",
+                    "left-14" // Push it right of the checkbox
+                )}>
                     <div className="px-3 py-1.5 bg-black/40 backdrop-blur-xl rounded-full border border-white/10 flex items-center gap-2 pointer-events-none">
                         <span className="text-[10px] font-bold text-zinc-400 tracking-wider uppercase">{image.original_ext || (isPDF ? 'PDF' : isArchive ? 'ZIP' : 'FILE')}</span>
                         {isImage && (

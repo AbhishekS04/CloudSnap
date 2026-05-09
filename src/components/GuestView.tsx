@@ -22,6 +22,8 @@ export function GuestView({ content, adminEmail }: GuestViewProps) {
                                 src="/icons/android-chrome-192x192.png"
                                 alt="CloudSnap Logo"
                                 fill
+                                sizes="32px"
+                                priority
                                 className="object-cover"
                             />
                         </div>
