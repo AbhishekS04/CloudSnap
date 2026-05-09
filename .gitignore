@@ -58,3 +58,6 @@ __pycache__/
 
 # Vercel
 .vercel
+
+scripts/migrate_data.js
+scripts/migrate_data_backup.js
