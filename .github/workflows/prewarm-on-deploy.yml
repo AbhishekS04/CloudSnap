@@ -1,6 +1,6 @@
 name: Prewarm CDN after Deploy
 
-# Triggers ONLY when Vercel marks the deployment as "success" — not blindly after X seconds.
+# Triggers ONLY when Vercel marks the deployment as "success".
 # This means prewarm always runs on the live new deployment, never on the old one.
 
 on:
@@ -11,27 +11,38 @@ jobs:
     name: Warm CDN Cache
     runs-on: ubuntu-latest
 
-    # Only run when the deployment is successful AND it's the production environment
-    if: |
-      github.event.deployment_status.state == 'success' &&
-      github.event.deployment.environment == 'Production'
+    # Fix: if condition must be single-line — multiline | block breaks GH Actions expression eval
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
 
     steps:
       - name: Trigger CDN prewarm on live deployment
+        continue-on-error: true   # prewarm failure should never block a deploy
+        timeout-minutes: 3
+        env:
+          PREWARM_SECRET: ${{ secrets.PREWARM_SECRET }}
         run: |
-          # Use the actual deployment URL from Vercel, fallback to production URL
+          # Guard: fail fast with a clear message if secret is not configured
+          if [ -z "$PREWARM_SECRET" ]; then
+            echo "::error::PREWARM_SECRET is not set in GitHub repository secrets!"
+            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+
           TARGET_URL="${{ github.event.deployment_status.target_url }}"
-          PREWARM_URL="${TARGET_URL}/api/prewarm?secret=${{ secrets.PREWARM_SECRET }}&limit=200"
+          PREWARM_URL="${TARGET_URL}/api/prewarm?secret=${PREWARM_SECRET}&limit=200"
 
-          echo "Prewarming: $PREWARM_URL"
+          echo "Prewarming: ${TARGET_URL}/api/prewarm?secret=***&limit=200"
 
-          RESPONSE=$(curl -sf "$PREWARM_URL" -w "\nHTTP_STATUS:%{http_code}")
+          # No -f flag — capture HTTP status ourselves instead of relying on curl exit code
+          RESPONSE=$(curl -s --max-time 120 "$PREWARM_URL" -w "\nHTTP_STATUS:%{http_code}")
           HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
           BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
 
           echo "Response: $BODY"
           echo "Status: $HTTP_STATUS"
 
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::warning::Prewarm returned non-200: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Prewarm succeeded — links are now lightning fast"
+          else
+            echo "::warning::Prewarm returned non-200: $HTTP_STATUS — links still work, just not pre-cached"
           fi
