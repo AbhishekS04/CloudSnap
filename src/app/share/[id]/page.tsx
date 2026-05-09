@@ -43,8 +43,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
     const title = `${asset.original_name} | CloudSnap`;
     const description = `Shared via CloudSnap • ${formatBytes(asset.original_size)} • ${asset.mime_type}`;
-    // Use the CDN for the OG image with optimal dimensions for Discord/Slack
-    const ogImage = `/api/cdn/${encodeURIComponent(asset.original_name || id)}?w=1200&fmt=webp`;
+    // Use UUID-based CDN URL for OG image — rename-proof
+    const ogImage = `/api/cdn/${asset.id}?w=1200&fmt=webp`;
 
     return {
         title,

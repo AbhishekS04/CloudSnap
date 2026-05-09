@@ -12,21 +12,31 @@ interface SharePageClientProps {
 
 export function SharePageClient({ asset }: SharePageClientProps) {
     const [copied, setCopied] = useState(false);
+    const [selectedFormat, setSelectedFormat] = useState<'original' | 'webp' | 'avif'>('original');
     const isVideo = asset.mime_type.startsWith('video/');
     const isImage = asset.mime_type.startsWith('image/');
     const isPDF = asset.mime_type === 'application/pdf';
     const isArchive = asset.mime_type?.includes('zip') || asset.mime_type?.includes('tar') || asset.mime_type?.includes('rar');
-    const cdnUrl = `/api/cdn/${encodeURIComponent(asset.original_name || asset.id)}`;
+    // Always UUID-based — rename-proof, no extra DB lookup
+    const cdnBase = `/api/cdn/${asset.id}`;
+    const cdnUrl = selectedFormat === 'original'
+        ? cdnBase
+        : `${cdnBase}?fmt=${selectedFormat}&q=auto`;
     
     const handleCopy = () => {
-        navigator.clipboard.writeText(window.location.href);
+        // Share URL also UUID-based
+        navigator.clipboard.writeText(`${window.location.origin}/share/${asset.id}`);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
 
     const handleDownload = () => {
+        const dlName = encodeURIComponent(asset.original_name);
+        const downloadUrl = cdnUrl.includes('?')
+            ? `${cdnUrl}&dl=1&name=${dlName}`
+            : `${cdnUrl}?dl=1&name=${dlName}`;
         const link = document.createElement('a');
-        link.href = `${cdnUrl}?dl=1`;
+        link.href = downloadUrl;
         link.download = asset.original_name;
         document.body.appendChild(link);
         link.click();
@@ -167,12 +177,34 @@ export function SharePageClient({ asset }: SharePageClientProps) {
                     </div>
 
                     <div className="flex flex-col gap-3 pt-4">
+                        {/* Format Selector — only shown for images */}
+                        {isImage && (
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Download Format</span>
+                                <div className="flex bg-zinc-900/60 rounded-full p-1 border border-white/10 backdrop-blur-2xl w-fit">
+                                    {(['original', 'webp', 'avif'] as const).map((fmt) => (
+                                        <button
+                                            key={fmt}
+                                            onClick={() => setSelectedFormat(fmt)}
+                                            className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-[0.15em] uppercase transition-all whitespace-nowrap ${
+                                                selectedFormat === fmt
+                                                    ? 'bg-white text-black shadow-xl shadow-white/20'
+                                                    : 'text-zinc-400 hover:text-white'
+                                            }`}
+                                        >
+                                            {fmt === 'original' ? 'RAW' : fmt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <button 
                             onClick={handleDownload}
                             className="w-full h-14 bg-white text-black rounded-2xl flex items-center justify-center gap-3 font-black text-sm hover:bg-zinc-200 transition-all active:scale-[0.98]"
                         >
                             <Download size={20} strokeWidth={3} />
-                            Download Asset
+                            Download {isImage && selectedFormat !== 'original' ? selectedFormat.toUpperCase() : 'Asset'}
                         </button>
 
                         <button 

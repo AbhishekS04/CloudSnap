@@ -46,7 +46,8 @@ export async function PATCH(
         return NextResponse.json({ 
             success: true, 
             name: cleanName,
-            cdnUrl: `/api/cdn/${encodeURIComponent(cleanName || id)}`
+            // Always return UUID-based URL — stable across renames, no extra DB lookup
+            cdnUrl: `/api/cdn/${id}`
         });
 
     } catch (error: any) {

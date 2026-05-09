@@ -102,6 +102,8 @@ export async function GET(
 
     // Use the actual asset ID for cache keys to prevent collisions if names change
     const assetId = asset.id;
+    // transformKey is stable even if the file is renamed — keyed on UUID not filename
+    const transformKey = `cs:${assetId}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
 
     // ── 2. Determine MIME & base response headers ──────────────────────────
     const mimeType     = asset.mime_type as string;
@@ -111,7 +113,7 @@ export async function GET(
     const safeFilename = encodeURIComponent(asset.original_name as string || `asset-${id}`);
 
     const baseHeaders: Record<string, string> = {
-      'Content-Disposition':         `${isDownload ? 'attachment' : 'inline'}; filename="${safeFilename}"`,
+      'Content-Disposition':         `${isDownload ? 'attachment' : 'inline'}; filename="${searchParams.get('name') || safeFilename}"`,
       'Cache-Control':               'public, s-maxage=31536000, stale-while-revalidate=59, immutable',
       'Access-Control-Allow-Origin': '*',
       'X-CloudSnap-Asset-Id':        assetId,
@@ -126,8 +128,6 @@ export async function GET(
     // ── 3. L1/L2 Cache Check — Final Output ──────────────────────────────
     // Key is unique per (id + transform params). Range requests bypass output cache
     // because the response body depends on the byte range, not the transform.
-    const transformKey = `cs:${id}:${requestedWidth}:${outputFormat}:${requestedQuality}`;
-
     if (!rangeHeader) {
       const cached = await getCache(transformKey);
       if (cached) {
@@ -283,10 +283,10 @@ export async function GET(
       }
 
       outputBuffer = await pipeline.toBuffer();
-      // Store the transformed output in both L1 + L2
-      await setCache(transformKey, outputBuffer);
+      // 7-day TTL: survives Vercel redeployments (edge cache clears, Redis doesn't)
+      await setCache(transformKey, outputBuffer, 604800, true);
     } else if (!asset.is_chunked) {
-      // Cache the untransformed original for repeat hits (only if under the size gate)
+      // Cache the untransformed original (standard 700KB gate, 24h)
       await setCache(transformKey, outputBuffer);
     }
 

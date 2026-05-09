@@ -348,6 +348,21 @@ export async function POST(req: NextRequest) {
 
         log('info', 'Asset saved to Supabase', { id });
 
+        // ── Fire-and-forget CDN Prewarm ────────────────────────────────────
+        // Warms Vercel Edge Cache + Redis immediately so shared links are
+        // fast from the very first external request, no cold Telegram hit.
+        if (mimeType.startsWith('image/')) {
+            const origin = new URL(req.url).origin;
+            const cdnBase = `${origin}/api/cdn/${encodeURIComponent(fileName)}`;
+            Promise.allSettled([
+                fetch(`${cdnBase}?w=200&fmt=webp`), // thumb
+                fetch(`${cdnBase}?w=600&fmt=webp`), // sm
+                fetch(cdnBase),                      // original
+            ])
+            .then(() => log('info', 'CDN prewarm complete', { fileName }))
+            .catch(() => {}); // silent fail — never block the response
+        }
+
         // ── Return response ────────────────────────────────────────────────
         const cdnUrl = `/api/cdn/${encodeURIComponent(fileName || id)}`;
         const isVideoAsset = mimeType.startsWith('video/');

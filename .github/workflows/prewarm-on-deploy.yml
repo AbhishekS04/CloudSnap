@@ -1,0 +1,37 @@
+name: Prewarm CDN after Deploy
+
+# Triggers ONLY when Vercel marks the deployment as "success" — not blindly after X seconds.
+# This means prewarm always runs on the live new deployment, never on the old one.
+
+on:
+  deployment_status:
+
+jobs:
+  prewarm:
+    name: Warm CDN Cache
+    runs-on: ubuntu-latest
+
+    # Only run when the deployment is successful AND it's the production environment
+    if: |
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Production'
+
+    steps:
+      - name: Trigger CDN prewarm on live deployment
+        run: |
+          # Use the actual deployment URL from Vercel, fallback to production URL
+          TARGET_URL="${{ github.event.deployment_status.target_url }}"
+          PREWARM_URL="${TARGET_URL}/api/prewarm?secret=${{ secrets.PREWARM_SECRET }}&limit=200"
+
+          echo "Prewarming: $PREWARM_URL"
+
+          RESPONSE=$(curl -sf "$PREWARM_URL" -w "\nHTTP_STATUS:%{http_code}")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+
+          echo "Response: $BODY"
+          echo "Status: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::warning::Prewarm returned non-200: $HTTP_STATUS"
+          fi

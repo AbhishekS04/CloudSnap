@@ -61,7 +61,8 @@ export function ImageGallery({
                     <ImageCard 
                         key={image.id} 
                         image={image} 
-                        onDelete={onDelete} 
+                        onDelete={onDelete}
+                        onRename={onRename}
                         isTrial={userRole === 'DEMO' && !!currentUserId && image.user_id === currentUserId}
                     />
                 ))}
@@ -125,7 +126,9 @@ function ImageCard({
     };
 
     const getUrl = () => {
-        const baseUrl = image.original_url || `/api/cdn/${encodeURIComponent(image.original_name || image.id)}`;
+        // ALWAYS use UUID-based base URL — never filename-based
+        // This makes the URL stable across renames and immune to cache-key drift
+        const baseUrl = `/api/cdn/${image.id}`;
 
         if (isVideo) {
             return format === 'compressed' ? (image.md_url || baseUrl) : baseUrl;
@@ -187,9 +190,8 @@ function ImageCard({
         e.stopPropagation();
         e.preventDefault();
         try {
-            // Copy the share landing page URL - Use Vanity Name if possible
-            const identifier = encodeURIComponent(image.original_name || image.id);
-            const shareUrl = `${window.location.origin}/share/${identifier}`;
+            // Always use UUID for share URL — rename-proof, never stale
+            const shareUrl = `${window.location.origin}/share/${image.id}`;
             await navigator.clipboard.writeText(shareUrl);
             setShareCopied(true);
             setTimeout(() => setShareCopied(false), 2000);
@@ -202,9 +204,15 @@ function ImageCard({
         e.stopPropagation();
         e.preventDefault();
         try {
-            // Copy the direct CDN URL with current transforms
-            const directUrl = `${window.location.origin}${getUrl()}`;
-            await navigator.clipboard.writeText(directUrl);
+            // Build the PRETTY URL with the current name for the clipboard
+            // (UUID is used internally for rendering; name-based URL is what humans share)
+            const prettyBase = `/api/cdn/${encodeURIComponent(image.original_name)}`;
+            const internalUrl = getUrl(); // UUID-based, used to extract current transform params
+            const paramStr = internalUrl.includes('?') ? internalUrl.split('?')[1] : '';
+            const prettyUrl = paramStr
+                ? `${window.location.origin}${prettyBase}?${paramStr}`
+                : `${window.location.origin}${prettyBase}`;
+            await navigator.clipboard.writeText(prettyUrl);
             setDirectCopied(true);
             setTimeout(() => setDirectCopied(false), 2000);
         } catch (err) {
@@ -215,11 +223,18 @@ function ImageCard({
     const handleDownload = (e: React.MouseEvent) => {
         e.stopPropagation();
         const url = getUrl();
-        const downloadUrl = url.includes('?') ? `${url}&dl=1` : `${url}?dl=1`;
-        // Create a temporary link and click it to trigger download
+        // Compute the correct filename extension based on selected format
+        // e.g. vondudynoo.jpg + WebP selected → vondudynoo.webp
+        const { name: baseName } = splitName(image.original_name);
+        const downloadExt = (format !== 'original' && isImage)
+            ? `.${format}`          // .webp or .avif
+            : splitName(image.original_name).ext; // keep original ext
+        const downloadName = `${baseName}${downloadExt}`;
+        const dlName = encodeURIComponent(downloadName);
+        const downloadUrl = url.includes('?') ? `${url}&dl=1&name=${dlName}` : `${url}?dl=1&name=${dlName}`;
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = image.original_name;
+        link.download = downloadName; // correct ext shown in browser save dialog
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);

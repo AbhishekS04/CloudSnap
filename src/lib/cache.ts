@@ -16,7 +16,8 @@ const log = (msg: string, data?: any) => {
 // ─────────────────────────────────────────────
 const L1 = new Map<string, { buffer: Buffer; expires: number }>();
 const L1_TTL_MS = 1000 * 60 * 60; // 1 hour
-const CACHE_GATE = 700_000;      // 700KB limit for L2
+const CACHE_GATE_RAW       = 700_000;   // 700KB — raw originals
+const CACHE_GATE_TRANSFORM = 2_000_000; // 2MB  — transformed outputs (thumb/sm/md)
 
 // ─────────────────────────────────────────────
 // L2: Redis Client
@@ -69,20 +70,21 @@ export async function getCache(key: string): Promise<{ buffer: Buffer; source: '
     return null;
 }
 
-export async function setCache(key: string, buffer: Buffer, ttlSeconds = 86400): Promise<void> {
-    // 1. Set L1
+export async function setCache(key: string, buffer: Buffer, ttlSeconds = 86400, isTransform = false): Promise<void> {
+    // 1. Set L1 always
     L1.set(key, { buffer, expires: Date.now() + L1_TTL_MS });
 
-    // 2. Set L2 if under 700KB
-    if (redis && buffer.length < CACHE_GATE) {
+    // 2. Set L2 — transforms use a higher gate (2MB) since they're smaller than originals
+    const gate = isTransform ? CACHE_GATE_TRANSFORM : CACHE_GATE_RAW;
+    if (redis && buffer.length < gate) {
         try {
             const base64 = buffer.toString('base64');
             await redis.set(`media:${key}`, base64, { ex: ttlSeconds });
-            log(`SET-L2 Success: ${key.substring(0, 8)}... (${Math.round(buffer.length/1024)}KB)`);
+            log(`SET-L2 Success: ${key.substring(0, 8)}... (${Math.round(buffer.length/1024)}KB, transform=${isTransform})`);
         } catch (e) {
             log('L2 Set Error:', e);
         }
     } else if (redis) {
-        log(`SKIP-L2: Too large (${Math.round(buffer.length/1024)}KB)`);
+        log(`SKIP-L2: Too large (${Math.round(buffer.length/1024)}KB, gate=${Math.round(gate/1024)}KB)`);
     }
 }
