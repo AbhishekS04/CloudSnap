@@ -62,9 +62,22 @@ export async function GET(
   const requestedWidth  = parseInt(searchParams.get('w') ?? '0', 10) || null;
   const requestedFormat = (searchParams.get('fmt') ?? '') as OutputFormat | '';
 
-  const outputFormat: OutputFormat | null = ALLOWED_FORMATS.includes(requestedFormat as OutputFormat)
+  // ── Accept-header auto-negotiation ──────────────────────────────────────
+  // If no explicit ?fmt= is given, infer the best format from the browser's
+  // Accept header. This mirrors how Cloudinary / Imgix / Vercel work.
+  // Priority: AVIF > WebP > original (AVIF ~40% smaller than WebP at same quality)
+  let outputFormat: OutputFormat | null = ALLOWED_FORMATS.includes(requestedFormat as OutputFormat)
     ? (requestedFormat as OutputFormat)
     : null;
+
+  if (!outputFormat) {
+    const accept = req.headers.get('accept') ?? '';
+    if (accept.includes('image/avif')) {
+      outputFormat = 'avif';
+    } else if (accept.includes('image/webp')) {
+      outputFormat = 'webp';
+    }
+  }
 
   const requestedQuality = resolveQuality(searchParams.get('q'), outputFormat);
 

@@ -107,6 +107,8 @@ function ImageCard({
     const [isHovered, setIsHovered] = useState(false);
     const [shareCopied, setShareCopied] = useState(false);
     const [directCopied, setDirectCopied] = useState(false);
+    // LQIP blur-up: tracks whether the real image has finished loading
+    const [isLoaded, setIsLoaded] = useState(false);
 
     // Smart Truncate Helper
     const truncateFileName = (name: string, maxLength: number = 20) => {
@@ -335,13 +337,29 @@ function ImageCard({
                             }
                         }}
                     >
-                        <img
-                            src={getPreviewSrc()}
-                            alt={image.original_name}
-                            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-all duration-700 group-hover:scale-110"
-                            loading="lazy"
-                            draggable={false}
-                        />
+                        {/* LQIP blur-up wrapper — shows the ~400-byte base64 placeholder
+                            as a CSS background instantly, then fades in the real image */}
+                        <div
+                            className="w-full h-full"
+                            style={image.lqip ? {
+                                backgroundImage: `url("${image.lqip}")`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                            } : undefined}
+                        >
+                            <img
+                                src={getPreviewSrc()}
+                                alt={image.original_name}
+                                className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${
+                                    isLoaded
+                                        ? 'opacity-90 group-hover:opacity-100'
+                                        : 'opacity-0'
+                                }`}
+                                loading="lazy"
+                                draggable={false}
+                                onLoad={() => setIsLoaded(true)}
+                            />
+                        </div>
                     </a>
                 )}
                 

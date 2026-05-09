@@ -27,6 +27,7 @@ const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200 MB
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-server';
 import busboy from 'busboy';
+import sharp from 'sharp';
 import { getMetadata, ensureBrowserCompatible } from '@/lib/image-processing';
 import { smartUploadToTelegram } from '@/lib/telegram';
 import { v4 as uuidv4 } from 'uuid';
@@ -262,10 +263,11 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // ── Get image dimensions if applicable ─────────────────────────────
+        // ── Get image dimensions + generate LQIP ─────────────────────────
         let width  = 0;
         let height = 0;
         let duration: number | null = null;
+        let lqip: string | null = null;
 
         if (mimeType.startsWith('image/')) {
             try {
@@ -274,6 +276,21 @@ export async function POST(req: NextRequest) {
                 height = meta.height;
             } catch (_) {
                 // Non-fatal
+            }
+
+            // LQIP — 16px wide, quality 20, Gaussian blur → ~300–600 bytes base64
+            // Used as an instant CSS background while the real image loads.
+            try {
+                const lqipBuf = await sharp(buffer)
+                    .resize({ width: 16, withoutEnlargement: true })
+                    .blur(1)
+                    .jpeg({ quality: 20 })
+                    .toBuffer();
+                lqip = `data:image/jpeg;base64,${lqipBuf.toString('base64')}`;
+                log('info', 'LQIP generated', { bytes: lqipBuf.length });
+            } catch (_) {
+                // LQIP failure is non-fatal — image still uploads fine
+                log('warn', 'LQIP generation skipped (non-fatal)');
             }
         }
 
@@ -339,6 +356,8 @@ export async function POST(req: NextRequest) {
                 // ── AI Metadata ──────────────────────────────────────────────
                 ai_description:     aiAnalysis?.description || null,
                 ai_tags:            aiAnalysis?.tags || null,
+                // ── LQIP ─────────────────────────────────────────────────────
+                lqip:               lqip,
             });
 
         if (dbError) {

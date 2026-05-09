@@ -63,6 +63,8 @@ export interface ImageRecord {
   created_at: string;
   folder_id?: string | null;
   user_id?: string | null;
+  // LQIP — tiny base64 blur placeholder stored at upload time
+  lqip?: string | null;
 }
 
 
@@ -96,6 +98,9 @@ export interface Asset {
   // AI Metadata
   ai_description?: string | null;
   ai_tags?: string[] | null;
+
+  // LQIP — Low Quality Image Placeholder (tiny base64 blur, generated at upload time)
+  lqip?: string | null;
 
   // Derived CDN URL helpers (not stored in DB)
   cdnUrl?: string;
