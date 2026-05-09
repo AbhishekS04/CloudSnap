@@ -32,7 +32,8 @@ import {
     Cloud,
     Trash2,
     FileText,
-    Cpu
+    Cpu,
+    Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Folder } from "@/lib/types";
@@ -223,12 +224,18 @@ export function Sidebar({
 
             {/* Developer Section */}
             {userRole === 'ADMIN' && (
-                <div className="px-4 mb-4">
+                <div className="px-4 mb-4 space-y-1">
                     <NavItem
                         icon={<Cpu className="w-4 h-4" />}
                         label="Developer Hub"
                         active={view === 'developer'}
                         onClick={() => { onSetView('developer'); onClose?.(); }}
+                    />
+                    <NavItem
+                        icon={<Zap className="w-4 h-4" />}
+                        label="Speed Lab"
+                        active={false}
+                        onClick={() => { window.location.href = '/compare'; }}
                     />
                 </div>
             )}

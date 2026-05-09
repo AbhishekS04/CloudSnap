@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { Zap, Settings2, ArrowLeft, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
 
 // ─────────────────────────────────────────────
 // Types
@@ -62,15 +63,14 @@ async function runSpeedTest(
   url: string,
   label: string,
   warmCache = false,
+  advancedFeatures = false
 ): Promise<TestResult> {
-  // Detect type from URL first (quick guess)
   let type: 'image' | 'video' | 'unknown' = detectTypeFromUrl(url);
   let ttfb = 0;
   let total = 0;
   let size: number | null = null;
 
   try {
-    // Optional: warm the CDN cache with a silent pre-fetch before timing
     if (warmCache) {
       try { await fetch(url, { cache: 'no-store', mode: 'cors' }); } catch {}
     }
@@ -82,7 +82,6 @@ async function runSpeedTest(
     const blob = await res.blob();
     total = performance.now() - startFetch;
 
-    // ✅ Detect type from real Content-Type header — fixes CloudSnap preview
     const ct = res.headers.get('content-type') ?? '';
     const detectedFromCT = detectTypeFromContentType(ct);
     type = detectedFromCT !== 'unknown' ? detectedFromCT : type;
@@ -141,8 +140,8 @@ function ResultCard({ result, maxTime, isWinner }: {
         : 'border-white/10 bg-white/5'
     }`}>
       {isWinner && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-xs font-bold px-3 py-0.5 rounded-full">
-          WINNER
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-xs font-bold px-3 py-0.5 rounded-full flex items-center gap-1">
+          <Zap className="w-3 h-3" /> WINNER
         </div>
       )}
 
@@ -153,8 +152,11 @@ function ResultCard({ result, maxTime, isWinner }: {
         </span>
       </div>
 
-      {/* Media Preview */}
-      <div className="aspect-video bg-black/30 rounded-lg overflow-hidden border border-white/10">
+      <div className="aspect-video bg-black/30 rounded-lg overflow-hidden border border-white/10 relative">
+        <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded-md text-[10px] uppercase font-bold text-white/70 flex items-center gap-1.5">
+          {result.type === 'video' ? <VideoIcon className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
+          {result.type}
+        </div>
         {result.error ? (
           <div className="w-full h-full flex items-center justify-center text-red-400 text-sm px-4 text-center">
             ⚠️ {result.error}
@@ -164,7 +166,6 @@ function ResultCard({ result, maxTime, isWinner }: {
         )}
       </div>
 
-      {/* Metrics */}
       <div className="space-y-3">
         <div>
           <div className="flex justify-between text-xs text-white/50 mb-1">
@@ -182,7 +183,7 @@ function ResultCard({ result, maxTime, isWinner }: {
           <SpeedBar value={result.ttfb} max={maxTime} color={isWinner ? 'bg-emerald-300' : 'bg-blue-300'} />
         </div>
 
-        <div className="flex justify-between text-xs">
+        <div className="flex justify-between text-xs pt-1 border-t border-white/5">
           <span className="text-white/50">File Size</span>
           <span className="font-mono font-bold text-white">{formatSize(result.size)}</span>
         </div>
@@ -221,7 +222,8 @@ export default function ComparePage() {
   const [results, setResults]   = useState<[TestResult, TestResult] | null>(null);
   const [status, setStatus]     = useState<TestStatus>('idle');
   const [runs, setRuns]         = useState(1);
-  const [warmCache, setWarmCache] = useState(true); // pre-warm CDN cache before timing
+  const [warmCache, setWarmCache] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleCompare = useCallback(async () => {
     if (!urlA || !urlB) return;
@@ -229,14 +231,13 @@ export default function ComparePage() {
     setResults(null);
 
     try {
-      // Run multiple times and take the median to reduce noise
       const trialsA: TestResult[] = [];
       const trialsB: TestResult[] = [];
 
       for (let i = 0; i < runs; i++) {
         const [a, b] = await Promise.all([
-          runSpeedTest(urlA, labelA, warmCache),
-          runSpeedTest(urlB, labelB, warmCache),
+          runSpeedTest(urlA, labelA, warmCache, showAdvanced),
+          runSpeedTest(urlB, labelB, warmCache, showAdvanced),
         ]);
         trialsA.push(a);
         trialsB.push(b);
@@ -252,7 +253,7 @@ export default function ComparePage() {
     } catch {
       setStatus('error');
     }
-  }, [urlA, urlB, labelA, labelB, runs]);
+  }, [urlA, urlB, labelA, labelB, runs, warmCache, showAdvanced]);
 
   const winner   = results ? (results[0].total <= results[1].total ? 0 : 1) : -1;
   const maxTime  = results ? Math.max(results[0].total, results[1].total) : 0;
@@ -260,24 +261,35 @@ export default function ComparePage() {
     ? results[1 - winner].total / results[winner].total
     : 0;
 
-  // Simple CloudSnap score based on TTFB
   const cloudSnapResult = results?.[labelA === 'CloudSnap (Yours)' ? 0 : 1];
   const score = cloudSnapResult
     ? Math.max(0, Math.min(100, Math.round(100 - (cloudSnapResult.total / 50))))
     : null;
 
+  // Helper for advanced query params
+  const appendQuery = (url: string, param: string, val: string) => {
+    if (!url) return '';
+    try {
+      const u = new URL(url);
+      u.searchParams.set(param, val);
+      return u.toString();
+    } catch {
+      return url;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
+      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between bg-zinc-950/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-sm font-bold">
-            ⚡
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-sm shadow-lg shadow-indigo-500/20">
+            <Zap className="w-4 h-4 text-white" />
           </div>
           <span className="font-semibold text-white/90">CloudSnap Speed Lab</span>
         </div>
-        <a href="/dashboard" className="text-sm text-white/40 hover:text-white/70 transition-colors">
-          ← Back to Dashboard
+        <a href="/dashboard" className="text-sm text-white/40 hover:text-white/70 transition-colors flex items-center gap-2">
+          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
         </a>
       </div>
 
@@ -297,7 +309,7 @@ export default function ComparePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {[
               { url: urlA, setUrl: setUrlA, label: labelA, setLabel: setLabelA, placeholder: 'https://res.cloudinary.com/...', color: 'border-blue-500 focus:ring-blue-500/30', dot: 'bg-blue-500' },
-              { url: urlB, setUrl: setUrlB, label: labelB, setLabel: setLabelB, placeholder: 'http://localhost:3000/api/cdn/...', color: 'border-emerald-500 focus:ring-emerald-500/30', dot: 'bg-emerald-500' },
+              { url: urlB, setUrl: setUrlB, label: labelB, setLabel: setLabelB, placeholder: 'https://cloud-snapp.vercel.app/api/cdn/...', color: 'border-emerald-500 focus:ring-emerald-500/30', dot: 'bg-emerald-500' },
             ].map(({ url, setUrl, label, setLabel, placeholder, color, dot }, i) => (
               <div key={i} className="space-y-2">
                 <div className="flex items-center gap-2 mb-1">
@@ -338,7 +350,7 @@ export default function ComparePage() {
                   {n}×
                 </button>
               ))}
-              <span className="text-white/30 text-xs">— more runs = more accurate</span>
+              <span className="text-white/30 text-xs hidden sm:inline">— median selected</span>
             </div>
 
             {/* Warm Cache Toggle */}
@@ -349,9 +361,21 @@ export default function ComparePage() {
                   ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                   : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'
               }`}
-              title="Pre-fetches both URLs once before timing. Gives CloudSnap's Vercel edge cache a chance to warm up — same advantage Cloudinary has."
+              title="Pre-fetches both URLs once before timing."
             >
               🔥 {warmCache ? 'Cache Warm ON' : 'Cache Warm OFF'}
+            </button>
+
+            {/* Advanced Toggle */}
+            <button
+              onClick={() => setShowAdvanced(a => !a)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                showAdvanced
+                  ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                  : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'
+              }`}
+            >
+              <Settings2 className="w-3.5 h-3.5" /> Advanced
             </button>
 
             <button
@@ -367,6 +391,62 @@ export default function ComparePage() {
               ) : '⚡ Run Speed Test'}
             </button>
           </div>
+
+          {/* Advanced Panel */}
+          {showAdvanced && (
+            <div className="pt-4 border-t border-white/5 mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-black/20 p-3 rounded-lg border border-white/5 space-y-2">
+                <div className="text-xs font-semibold text-white/60 flex justify-between">
+                  <span>Format Forced (CloudSnap)</span>
+                </div>
+                <div className="flex gap-2">
+                  {['auto', 'webp', 'avif'].map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setUrlB(appendQuery(urlB, 'fmt', fmt === 'auto' ? '' : fmt))}
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-xs py-1 rounded border border-white/10 transition-colors capitalize"
+                    >
+                      {fmt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-black/20 p-3 rounded-lg border border-white/5 space-y-2">
+                <div className="text-xs font-semibold text-white/60 flex justify-between">
+                  <span>Resize Width (CloudSnap)</span>
+                </div>
+                <div className="flex gap-2">
+                  {['original', '1080', '800'].map(w => (
+                    <button
+                      key={w}
+                      onClick={() => setUrlB(appendQuery(urlB, 'w', w === 'original' ? '' : w))}
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-xs py-1 rounded border border-white/10 transition-colors"
+                    >
+                      {w === 'original' ? 'Org' : `${w}px`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-black/20 p-3 rounded-lg border border-white/5 space-y-2">
+                <div className="text-xs font-semibold text-white/60 flex justify-between">
+                  <span>Quality (CloudSnap)</span>
+                </div>
+                <div className="flex gap-2">
+                  {['original', '80', '60'].map(q => (
+                    <button
+                      key={q}
+                      onClick={() => setUrlB(appendQuery(urlB, 'q', q === 'original' ? '' : q))}
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-xs py-1 rounded border border-white/10 transition-colors"
+                    >
+                      {q === 'original' ? 'Org' : q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Results */}
