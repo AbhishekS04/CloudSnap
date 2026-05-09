@@ -11,7 +11,7 @@ export default function Home() {
       <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),transparent_50%)]" />
 
       {/* Grid Pattern */}
-      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none bg-[url('/noise.svg')]" />
 
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 py-20">
         <motion.div
