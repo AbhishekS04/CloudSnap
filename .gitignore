@@ -61,3 +61,4 @@ __pycache__/
 
 scripts/migrate_data.js
 scripts/migrate_data_backup.js
+scripts/migrate_mumbai_to_singapore.js
