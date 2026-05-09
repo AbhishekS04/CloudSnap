@@ -161,14 +161,25 @@ export async function GET(
     }
 
     // ── 4. Case A: Simple Stream Proxy ────────────────────────────────────
-    // Non-chunked assets with no transform and no range request — stream directly.
+    // Non-chunked assets with no transform — stream directly.
+    // If rangeHeader is present, we pass it to Telegram so it slices it for us!
     // Streaming avoids loading the full binary into Node.js memory.
-    if (!asset.is_chunked && !needsTransform && !rangeHeader) {
+    if (!asset.is_chunked && !needsTransform) {
       try {
-        const stream = await getTelegramStream(asset.telegram_file_ids[0]);
+        const { stream, status, headers: tgHeaders } = await getTelegramStream(asset.telegram_file_ids[0], rangeHeader || undefined);
+        
+        const responseHeaders = new Headers(baseHeaders);
+        responseHeaders.set('Content-Type', mimeType);
+        responseHeaders.set('X-Cache-Status', 'MISS-PROXY');
+        responseHeaders.set('X-Cache-Source', 'TELEGRAM');
+        
+        if (tgHeaders.has('Content-Length')) responseHeaders.set('Content-Length', tgHeaders.get('Content-Length')!);
+        if (tgHeaders.has('Content-Range')) responseHeaders.set('Content-Range', tgHeaders.get('Content-Range')!);
+        if (tgHeaders.has('Accept-Ranges')) responseHeaders.set('Accept-Ranges', tgHeaders.get('Accept-Ranges')!);
+
         return new NextResponse(stream, {
-          status: 200,
-          headers: { ...baseHeaders, 'Content-Type': mimeType, 'X-Cache-Status': 'MISS-STREAM', 'X-Cache-Source': 'TELEGRAM' },
+          status: status,
+          headers: responseHeaders,
         });
       } catch (e) {
         console.warn('[CDN] Direct stream failed, falling back to buffer:', e);
@@ -225,7 +236,8 @@ export async function GET(
         });
       }
 
-      // Non-chunked video range request — download the single file, slice it
+      // If it reaches here, it means it's a non-chunked video but Case A failed (e.g. stream failed)
+      // We fall back to downloading the single file and slicing it in memory.
       const rawKey    = `cs:raw:${assetId}`;
       let singleBuf   = (await getCache(rawKey))?.buffer ?? null;
       if (!singleBuf) {

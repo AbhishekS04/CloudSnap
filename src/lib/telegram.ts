@@ -118,13 +118,17 @@ export async function downloadFromTelegram(fileId: string): Promise<Buffer> {
  * Returns a ReadableStream for a Telegram file.
  * Use this for "piping" data directly to the browser (Instant play).
  */
-export async function getTelegramStream(fileId: string): Promise<ReadableStream<Uint8Array>> {
+export async function getTelegramStream(fileId: string, rangeHeader?: string): Promise<{ stream: ReadableStream<Uint8Array>, status: number, headers: Headers }> {
   const url = await getTelegramFileUrl(fileId);
-  const res = await fetch(url);
+  const fetchHeaders: Record<string, string> = {};
+  if (rangeHeader) {
+      fetchHeaders['Range'] = rangeHeader;
+  }
+  const res = await fetch(url, { headers: fetchHeaders });
   if (!res.ok || !res.body) {
     throw new Error(`Telegram stream failed: ${res.status}`);
   }
-  return res.body as ReadableStream<Uint8Array>;
+  return { stream: res.body as ReadableStream<Uint8Array>, status: res.status, headers: res.headers };
 }
 
 // ---------------------------------------------
