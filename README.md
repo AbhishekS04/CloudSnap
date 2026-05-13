@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://cloud-snapp.vercel.app/api/cdn/screenshot-from-2026-04-30-14-15-20.png?fmt=avif" alt="CloudSnap Banner" width="100%" style="border-radius: 10px;" />
+  <img src="https://cloud-snapp.vercel.app/api/cdn/screenshot-from-2026-04-30-14-15-20.png?fmt=avif" alt="CloudSnap Banner" width="100%" style="border-radius: 16px;" />
 
   <br />
   
@@ -112,10 +112,10 @@ CloudSnap was built to match — and in several areas exceed — the capabilitie
 ### How the two new features close the gap
 
 **LQIP (Low Quality Image Placeholder)**
-Cloudinary charges a transformation credit every time you request `e_blur,q_1,w_20` as a placeholder. In CloudSnap, Sharp runs once at upload time, producing a `~400-byte` base64 string that is stored permanently in Supabase. There is no per-request cost, no CDN round-trip, and no delay — the blurred preview renders in **< 1ms** because it's embedded directly into the JS bundle as a data URI.
+Cloudinary charges a transformation credit every time you request `e_blur,q_1,w_20` as a placeholder. In CloudSnap, Sharp runs once at upload time, producing a `~400-byte` base64 string that is stored[...]
 
 **Accept-Header Auto Format Negotiation**
-Cloudinary's `f_auto` works by appending a URL parameter — every unique URL variation (original vs AVIF vs WebP) is treated as a billable transformation. CloudSnap's CDN proxy reads the browser's `Accept` header server-side, selects the optimal format, and caches each variant under its own stable key. The result is **identical UX** — AVIF for Chrome, WebP for Safari — with zero extra URL parameters and zero per-request charges, since the format is baked into the cached response.
+Cloudinary's `f_auto` works by appending a URL parameter — every unique URL variation (original vs AVIF vs WebP) is treated as a billable transformation. CloudSnap's CDN proxy reads the browser's `A[...]
 
 ---
 
@@ -237,13 +237,13 @@ Cloudinary's `f_auto` works by appending a URL parameter — every unique URL va
 - Old assets without LQIP are handled gracefully — the `lqip` field is nullable and the gallery renders them with no regression.
 
 ### 13. CDN Accept-Header Auto Format Negotiation
-**Challenge**: The CDN always served the original file format unless the client explicitly passed `?fmt=webp` or `?fmt=avif`. This meant browsers capable of rendering AVIF (Chrome, Edge) were downloading bloated JPEGs/PNGs — sometimes 3–5× larger than an equivalent AVIF.
+**Challenge**: The CDN always served the original file format unless the client explicitly passed `?fmt=webp` or `?fmt=avif`. This meant browsers capable of rendering AVIF (Chrome, Edge) were download[...]
 **Solution**:
 - In `/api/cdn/[id]/route.ts`, after parsing the optional `?fmt=` parameter, the handler now reads the `Accept` request header.
 - If no explicit format was requested and the header contains `image/avif`, the CDN selects AVIF automatically.
 - If the header contains `image/webp` (and not AVIF), WebP is selected.
 - If neither is supported, the original format is returned untouched.
-- The existing transform-key scheme (`cs:{id}:{w}:{format}:{quality}`) already handles per-format caching — AVIF and WebP variants are cached independently in Upstash Redis, so the second request for any format is a pure cache hit.
+- The existing transform-key scheme (`cs:{id}:{w}:{format}:{quality}`) already handles per-format caching — AVIF and WebP variants are cached independently in Upstash Redis, so the second request fo[...]
 - No changes to any client URL patterns — the negotiation is entirely server-side and transparent.
 
 ---
@@ -252,7 +252,7 @@ Cloudinary's `f_auto` works by appending a URL parameter — every unique URL va
 
 This project is open-sourced for **educational and inspirational purposes**. 
 
-Instead of simply cloning this repository, we strongly encourage you to **study the architecture, understand the solutions to the complex challenges listed above, and build your own bespoke asset management system.**
+Instead of simply cloning this repository, we strongly encourage you to **study the architecture, understand the solutions to the complex challenges listed above, and build your own bespoke asset mana[...]
 
 The true value lies in the journey of solving these engineering problems yourself.
 
